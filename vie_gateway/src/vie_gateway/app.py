@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
             issuer=os.environ.get("MADVA_OIDC_ISSUER", ""),
             audience=os.environ.get("MADVA_OIDC_AUDIENCE", "vie-gateway"),
         )
+    verifier, tracer = Verifier(), AuditTracer()
     runtime_image = os.environ.get("MADVA_RUNTIME_IMAGE")
     upstream_url = os.environ.get("MADVA_MCP_UPSTREAM_URL")
     upstream_allowed_hosts = frozenset(
@@ -49,11 +50,10 @@ def create_app() -> FastAPI:
             allowed_hosts=upstream_allowed_hosts,
             protocol_version=os.environ.get("MADVA_MCP_UPSTREAM_PROTOCOL_VERSION", "2026-07-28"),
             lifecycle=upstream_lifecycle,
-        ))
+        ), tracer=tracer)
     else:
         runner = (DockerRunner(DockerConfig(image=runtime_image))
                   if runtime_image else EphemeralRunner({"echo": _echo}))
-    verifier, tracer = Verifier(), AuditTracer()
     credential_provider = (VaultCredentialProvider(os.environ["VAULT_ADDR"], os.environ["VAULT_TOKEN"])
                            if os.environ.get("VAULT_ADDR") and os.environ.get("VAULT_TOKEN")
                            else DenyAllCredentialProvider())

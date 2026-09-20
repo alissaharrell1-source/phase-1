@@ -176,6 +176,48 @@ async def test_mcp_upstream_runner_forwards_standard_tool_call() -> None:
     assert arguments == {}
 
 
+@pytest.mark.asyncio
+async def test_mcp_upstream_span_excludes_sensitive_values() -> None:
+    import httpx
+    import json
+    from contextlib import contextmanager
+
+    permit = Permit(permit_id=uuid4(), agent_id="agent-1", requester_id="requester-1",
+                    intent_scope="approved", tool="echo", operation="run", contract_id=uuid4(),
+                    expires_at=datetime.now(UTC) + timedelta(minutes=1))
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"], "result": {"ok": True}})
+
+    class Span:
+        def __init__(self) -> None:
+            self.attributes: dict[str, str] = {}
+
+        def set_attribute(self, key: str, value: str) -> None:
+            self.attributes[key] = value
+
+    class Tracer:
+        def __init__(self) -> None:
+            self.span_value = Span()
+
+        @contextmanager
+        def span(self, name: str, **attributes: str):
+            self.span_value.attributes.update(attributes)
+            yield self.span_value
+
+    tracer = Tracer()
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    await MCPUpstreamRunner(
+        MCPUpstreamConfig("https://tools.example/mcp", bearer_token="do-not-record",
+                          allowed_hosts=frozenset({"tools.example"})), client, tracer
+    ).run(permit, {"secret_argument": "do-not-record"})
+    await client.aclose()
+    assert tracer.span_value.attributes["mcp.outcome"] == "success"
+    assert "secret_argument" not in tracer.span_value.attributes
+    assert "do-not-record" not in str(tracer.span_value.attributes)
+
+
 def test_mcp_upstream_config_rejects_url_credentials_and_query() -> None:
     with pytest.raises(ValueError, match="credentials_forbidden"):
         MCPUpstreamConfig("https://user:password@tools.example/mcp")

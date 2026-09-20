@@ -10,6 +10,7 @@ import httpx
 from .contracts import ExecutionResult, Permit
 from .credentials import CredentialLease
 from .runtime import RuntimeErrorBoundary
+from .telemetry import AuditTracer
 
 
 @dataclass(frozen=True)
@@ -39,9 +40,11 @@ class MCPUpstreamRunner:
     """Forward one approved call to an MCP JSON-RPC server."""
 
     def __init__(self, config: MCPUpstreamConfig,
-                 client: httpx.AsyncClient | None = None) -> None:
+                 client: httpx.AsyncClient | None = None,
+                 tracer: AuditTracer | None = None) -> None:
         self.config = config
         self._client = client
+        self._tracer = tracer or AuditTracer()
 
     async def run(self, permit: Permit, arguments: dict[str, Any],
                   credential_leases: list[CredentialLease] | None = None) -> ExecutionResult:
@@ -55,68 +58,79 @@ class MCPUpstreamRunner:
         owns_client = client is None
         if client is None:
             client = httpx.AsyncClient(timeout=self.config.timeout_seconds)
-        try:
-            session_id: str | None = None
-            if self.config.lifecycle == "legacy":
-                initialize_id = str(uuid4())
-                initialize_body = await self._post_json(
-                    client,
-                    {"jsonrpc": "2.0", "id": initialize_id, "method": "initialize",
-                     "params": {"protocolVersion": self.config.protocol_version,
-                                 "capabilities": {},
-                                 "clientInfo": {"name": self.config.client_name,
-                                                 "version": self.config.client_version}}},
-                    self._headers("initialize"),
-                )
-                if initialize_body.get("id") != initialize_id or "result" not in initialize_body:
-                    raise RuntimeErrorBoundary("mcp_upstream_initialize_failed")
-                session_id = initialize_body.get("_session_id")
-                notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
-                await self._post_notification(client, notification, self._headers("notifications/initialized", session_id))
+        with self._tracer.span(
+            "vie.mcp_upstream",
+            mcp_upstream_host=hostname,
+            mcp_protocol_version=self.config.protocol_version,
+            mcp_lifecycle=self.config.lifecycle,
+            mcp_tool=permit.tool,
+        ) as span:
+            try:
+                session_id: str | None = None
+                if self.config.lifecycle == "legacy":
+                    initialize_id = str(uuid4())
+                    initialize_body = await self._post_json(
+                        client,
+                        {"jsonrpc": "2.0", "id": initialize_id, "method": "initialize",
+                         "params": {"protocolVersion": self.config.protocol_version,
+                                     "capabilities": {},
+                                     "clientInfo": {"name": self.config.client_name,
+                                                     "version": self.config.client_version}}},
+                        self._headers("initialize"),
+                    )
+                    if initialize_body.get("id") != initialize_id or "result" not in initialize_body:
+                        raise RuntimeErrorBoundary("mcp_upstream_initialize_failed")
+                    session_id = initialize_body.get("_session_id")
+                    notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+                    await self._post_notification(client, notification,
+                                                  self._headers("notifications/initialized", session_id))
 
-            request_id = str(uuid4())
-            payload = {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "method": "tools/call",
-                "params": {
-                    "name": permit.tool,
-                    "arguments": arguments,
-                    "_meta": {
-                        "io.modelcontextprotocol/clientInfo": {
-                            "name": self.config.client_name,
-                            "version": self.config.client_version,
+                request_id = str(uuid4())
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "method": "tools/call",
+                    "params": {
+                        "name": permit.tool,
+                        "arguments": arguments,
+                        "_meta": {
+                            "io.modelcontextprotocol/clientInfo": {
+                                "name": self.config.client_name,
+                                "version": self.config.client_version,
+                            },
                         },
                     },
-                },
-            }
-            body = await self._post_json(client, payload, self._headers("tools/call", session_id, permit.tool))
-        except RuntimeErrorBoundary:
-            raise
-        except (httpx.HTTPError, ValueError) as exc:
-            raise RuntimeErrorBoundary("mcp_upstream_unavailable") from exc
-        finally:
-            arguments.clear()
-            if owns_client:
-                await client.aclose()
-
-        if body.get("id") != request_id:
-            raise RuntimeErrorBoundary("mcp_upstream_invalid_response")
-        if body.get("error") is not None:
-            error = body["error"]
-            message = str(error.get("message", "upstream_tool_error"))[:200] if isinstance(error, dict) else "upstream_tool_error"
-            raise RuntimeErrorBoundary(f"mcp_upstream_error:{message}")
-        if "result" not in body:
-            raise RuntimeErrorBoundary("mcp_upstream_missing_result")
-
-        return ExecutionResult(
-            status="completed",
-            output=body["result"],
-            session_id=uuid4(),
-            evidence=[f"mcp-upstream:{urlsplit(self.config.url).netloc}",
-                      f"mcp-lifecycle:{self.config.lifecycle}"],
-            cleanup_status="verified",
-        )
+                }
+                body = await self._post_json(client, payload,
+                                             self._headers("tools/call", session_id, permit.tool))
+                if body.get("id") != request_id:
+                    raise RuntimeErrorBoundary("mcp_upstream_invalid_response")
+                if "result" not in body:
+                    raise RuntimeErrorBoundary("mcp_upstream_missing_result")
+                if span is not None:
+                    span.set_attribute("mcp.outcome", "success")
+                return ExecutionResult(
+                    status="completed",
+                    output=body["result"],
+                    session_id=uuid4(),
+                    evidence=[f"mcp-upstream:{urlsplit(self.config.url).netloc}",
+                              f"mcp-lifecycle:{self.config.lifecycle}"],
+                    cleanup_status="verified",
+                )
+            except RuntimeErrorBoundary as exc:
+                if span is not None:
+                    span.set_attribute("mcp.outcome", "error")
+                    span.set_attribute("mcp.error", str(exc)[:200])
+                raise
+            except (httpx.HTTPError, ValueError) as exc:
+                if span is not None:
+                    span.set_attribute("mcp.outcome", "error")
+                    span.set_attribute("mcp.error", "mcp_upstream_unavailable")
+                raise RuntimeErrorBoundary("mcp_upstream_unavailable") from exc
+            finally:
+                arguments.clear()
+                if owns_client:
+                    await client.aclose()
 
     def _headers(self, method: str, session_id: str | None = None,
                  tool: str | None = None) -> dict[str, str]:
