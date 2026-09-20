@@ -1,0 +1,61 @@
+services:
+  vie-gateway:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      MADVA_PRODUCTION: "false"
+      MADVA_TOKEN_SECRET: local-development-only-change-me
+      MADVA_TOKEN_ISSUER: madva
+      MADVA_TOKEN_AUDIENCE: vie-gateway
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    command: start-dev
+    ports:
+      - "8080:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    profiles: [identity]
+
+  vault:
+    image: hashicorp/vault:1.20
+    command: server -dev -dev-root-token-id=dev-only-token
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-only-token
+      VAULT_ADDR: http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    profiles: [secrets]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.76
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    profiles: [observability]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.133.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4319:4318"
+    profiles: [observability]

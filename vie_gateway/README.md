@@ -28,6 +28,8 @@ Copy `.env.example` to the deployment environment and replace every placeholder 
 
 `.github/workflows/ci.yml` runs tests, type checking, Compose validation, and the container build on every push and pull request.
 
+For local infrastructure, `compose.dev.yaml` provides optional profiles for Keycloak (`identity`), Vault (`secrets`), and Jaeger plus the OpenTelemetry Collector (`observability`). These images use demo credentials and are for local development only; do not expose them publicly or reuse their credentials.
+
 Credential references are denied unless a vault-backed `CredentialProvider` is injected. Secret values are never placed in graph state or Docker command arguments.
 
 ## Run
@@ -37,3 +39,11 @@ python -m pip install -e ".[dev]"
 python -m pytest
 uvicorn vie_gateway.app:app --reload
 ```
+
+To start the gateway with local observability:
+
+```powershell
+docker compose -f compose.dev.yaml --profile observability up --build
+```
+
+Then open `http://localhost:16686` for Jaeger and `http://localhost:8000/healthz` for the gateway. Add `--profile identity --profile secrets` when you want the local Keycloak and Vault services as well.
