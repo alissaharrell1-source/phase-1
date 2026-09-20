@@ -1,0 +1,5 @@
+vie_gateway/src/*.egg-info/
+vie_gateway/.pytest_cache/
+vie_gateway/.mypy_cache/
+vie_gateway/**/__pycache__/
+vie_gateway/.env

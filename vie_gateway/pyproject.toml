@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "madva-vie-gateway"
+version = "0.1.0"
+description = "Verified Intent Execution Gateway for MADVA Phase 1"
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.115", "pydantic>=2.7", "uvicorn[standard]>=0.30", "opentelemetry-api>=1.25", "opentelemetry-sdk>=1.25", "opentelemetry-exporter-otlp-proto-http>=1.25", "httpx>=0.27", "PyJWT[crypto]>=2.8", "jsonschema>=4.23", "langgraph>=0.2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "httpx>=0.27", "mypy>=1.10", "types-jsonschema>=4.23"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src"]
+addopts = "-p no:langsmith -p no:cacheprovider"

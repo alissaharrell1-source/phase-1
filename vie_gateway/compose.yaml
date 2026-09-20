@@ -1,0 +1,23 @@
+services:
+  vie-gateway:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      MADVA_PRODUCTION: "true"
+      MADVA_OIDC_JWKS_URL: ${MADVA_OIDC_JWKS_URL:?set OIDC JWKS URL}
+      MADVA_OIDC_ISSUER: ${MADVA_OIDC_ISSUER:?set OIDC issuer}
+      MADVA_OIDC_AUDIENCE: ${MADVA_OIDC_AUDIENCE:-vie-gateway}
+      MADVA_INTENT_SECRET: ${MADVA_INTENT_SECRET:?set intent secret}
+      MADVA_RUNTIME_IMAGE: ${MADVA_RUNTIME_IMAGE:?set immutable runtime image}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    restart: unless-stopped
