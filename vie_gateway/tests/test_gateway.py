@@ -11,6 +11,7 @@ from vie_gateway.contracts import ExecutionResult, Permit
 from vie_gateway.verification import Verifier
 from vie_gateway.credentials import CredentialLease, VaultCredentialProvider
 from vie_gateway.dlp import DLPScanner
+from vie_gateway.mcp_upstream import MCPUpstreamConfig, MCPUpstreamRunner
 
 def test_jit_authorizer_binds_scope_and_tool() -> None:
     intent = IntentContract(contract_id=uuid4(), purpose="echo-purpose", tool="echo", operation="run",
@@ -137,6 +138,54 @@ def test_intent_signer_requires_and_verifies_signature(monkeypatch) -> None:
     signature = hmac.new(secret.encode(), json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode(), hashlib.sha256).hexdigest()
     signed = unsigned.model_copy(update={"signature": signature})
     IntentSigner(None).verify(signed)
+
+
+@pytest.mark.asyncio
+async def test_mcp_upstream_runner_forwards_standard_tool_call() -> None:
+    import httpx
+
+    permit = Permit(permit_id=uuid4(), agent_id="agent-1", requester_id="requester-1",
+                    intent_scope="approved", tool="weather", operation="lookup", contract_id=uuid4(),
+                    expires_at=datetime.now(UTC) + timedelta(minutes=1))
+    observed: dict[str, object] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        observed.update(json.loads(request.content))
+        assert request.headers["authorization"] == "Bearer upstream-token"
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": observed["id"],
+                                         "result": {"temperature": 72}})
+
+    import json
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    arguments = {"city": "Boston"}
+    result = await MCPUpstreamRunner(
+        MCPUpstreamConfig("https://tools.example/mcp", bearer_token="upstream-token"), client
+    ).run(permit, arguments)
+    await client.aclose()
+    assert observed["method"] == "tools/call"
+    assert observed["params"] == {"name": "weather", "arguments": {"city": "Boston"}}
+    assert result.output == {"temperature": 72}
+    assert arguments == {}
+
+
+@pytest.mark.asyncio
+async def test_mcp_upstream_runner_rejects_rpc_error() -> None:
+    import httpx
+
+    permit = Permit(permit_id=uuid4(), agent_id="agent-1", requester_id="requester-1",
+                    intent_scope="approved", tool="weather", operation="lookup", contract_id=uuid4(),
+                    expires_at=datetime.now(UTC) + timedelta(minutes=1))
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"],
+                                         "error": {"code": -32601, "message": "tool_not_found"}})
+
+    import json
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    with pytest.raises(RuntimeError, match="mcp_upstream_error:tool_not_found"):
+        await MCPUpstreamRunner(MCPUpstreamConfig("https://tools.example/mcp"), client).run(permit, {})
+    await client.aclose()
 
 @pytest.mark.asyncio
 async def test_oidc_validator_verifies_rsa_jwks_token() -> None:

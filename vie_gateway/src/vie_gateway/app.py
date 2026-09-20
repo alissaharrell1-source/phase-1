@@ -12,6 +12,7 @@ from .verification import Verifier
 from .telemetry import AuditTracer, configure_tracing
 from .graph import GraphDependencies, build_vie_graph
 from .credentials import DenyAllCredentialProvider, VaultCredentialProvider
+from .mcp_upstream import MCPUpstreamConfig, MCPUpstreamRunner
 
 async def _echo(arguments: dict[str, object]) -> dict[str, object]:
     return {"echo": arguments}
@@ -28,8 +29,17 @@ def create_app() -> FastAPI:
             audience=os.environ.get("MADVA_OIDC_AUDIENCE", "vie-gateway"),
         )
     runtime_image = os.environ.get("MADVA_RUNTIME_IMAGE")
-    runner: Runner = (DockerRunner(DockerConfig(image=runtime_image))
-                      if runtime_image else EphemeralRunner({"echo": _echo}))
+    upstream_url = os.environ.get("MADVA_MCP_UPSTREAM_URL")
+    runner: Runner
+    if upstream_url:
+        runner = MCPUpstreamRunner(MCPUpstreamConfig(
+            url=upstream_url,
+            timeout_seconds=float(os.environ.get("MADVA_MCP_UPSTREAM_TIMEOUT", "30")),
+            bearer_token=os.environ.get("MADVA_MCP_UPSTREAM_TOKEN"),
+        ))
+    else:
+        runner = (DockerRunner(DockerConfig(image=runtime_image))
+                  if runtime_image else EphemeralRunner({"echo": _echo}))
     verifier, tracer = Verifier(), AuditTracer()
     credential_provider = (VaultCredentialProvider(os.environ["VAULT_ADDR"], os.environ["VAULT_TOKEN"])
                            if os.environ.get("VAULT_ADDR") and os.environ.get("VAULT_TOKEN")
@@ -39,7 +49,8 @@ def create_app() -> FastAPI:
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
-        return {"status": "ok", "service": "madva-vie-gateway", "runtime": "docker" if runtime_image else "local"}
+        runtime = "mcp-upstream" if upstream_url else "docker" if runtime_image else "local"
+        return {"status": "ok", "service": "madva-vie-gateway", "runtime": runtime}
 
     @app.get("/readyz", response_model=None)
     async def readyz() -> JSONResponse | dict[str, str]:
