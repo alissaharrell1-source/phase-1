@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
             timeout_seconds=float(os.environ.get("MADVA_MCP_UPSTREAM_TIMEOUT", "30")),
             bearer_token=os.environ.get("MADVA_MCP_UPSTREAM_TOKEN"),
             allowed_hosts=upstream_allowed_hosts,
+            protocol_version=os.environ.get("MADVA_MCP_UPSTREAM_PROTOCOL_VERSION", "2026-07-28"),
         ))
     else:
         runner = (DockerRunner(DockerConfig(image=runtime_image))

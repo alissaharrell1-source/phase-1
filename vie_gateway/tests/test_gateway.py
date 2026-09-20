@@ -152,6 +152,9 @@ async def test_mcp_upstream_runner_forwards_standard_tool_call() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         observed.update(json.loads(request.content))
         assert request.headers["authorization"] == "Bearer upstream-token"
+        assert request.headers["mcp-protocol-version"] == "2026-07-28"
+        assert request.headers["mcp-method"] == "tools/call"
+        assert request.headers["mcp-name"] == "weather"
         return httpx.Response(200, json={"jsonrpc": "2.0", "id": observed["id"],
                                          "result": {"temperature": 72}})
 
@@ -164,7 +167,11 @@ async def test_mcp_upstream_runner_forwards_standard_tool_call() -> None:
     ).run(permit, arguments)
     await client.aclose()
     assert observed["method"] == "tools/call"
-    assert observed["params"] == {"name": "weather", "arguments": {"city": "Boston"}}
+    assert observed["params"]["name"] == "weather"
+    assert observed["params"]["arguments"] == {"city": "Boston"}
+    assert observed["params"]["_meta"]["io.modelcontextprotocol/clientInfo"] == {
+        "name": "madva-vie-gateway", "version": "0.1.0"
+    }
     assert result.output == {"temperature": 72}
     assert arguments == {}
 

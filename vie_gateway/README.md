@@ -20,6 +20,8 @@ Set `MADVA_RUNTIME_IMAGE` to an immutable image reference such as `registry.exam
 
 Set `MADVA_MCP_UPSTREAM_URL` to route approved calls to an MCP JSON-RPC server instead of the local or Docker runner. The gateway sends the standard `tools/call` shape (`params.name` and `params.arguments`), validates the JSON-RPC response, and never forwards the inbound MADVA bearer token. Use `MADVA_MCP_UPSTREAM_TOKEN` only for a separately scoped upstream credential.
 
+Upstream calls default to the stateless MCP protocol version `2026-07-28`, sending protocol-version, method, tool-name, and gateway client identity metadata. Override this with `MADVA_MCP_UPSTREAM_PROTOCOL_VERSION` for a compatible upstream deployment.
+
 The development Compose profile includes a small demo MCP server under `examples/mcp-upstream` and routes the gateway to it automatically. It uses demo credentials only and must not be exposed publicly.
 
 Set `MADVA_INTENT_SECRET` to require HMAC-signed Intent Contracts. Without it, unsigned contracts remain available for local development and tests.

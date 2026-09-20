@@ -18,6 +18,9 @@ class MCPUpstreamConfig:
     timeout_seconds: float = 30.0
     bearer_token: str | None = None
     allowed_hosts: frozenset[str] = frozenset()
+    protocol_version: str = "2026-07-28"
+    client_name: str = "madva-vie-gateway"
+    client_version: str = "0.1.0"
 
     def __post_init__(self) -> None:
         parsed = urlsplit(self.url)
@@ -50,9 +53,23 @@ class MCPUpstreamRunner:
             "jsonrpc": "2.0",
             "id": request_id,
             "method": "tools/call",
-            "params": {"name": permit.tool, "arguments": arguments},
+            "params": {
+                "name": permit.tool,
+                "arguments": arguments,
+                "_meta": {
+                    "io.modelcontextprotocol/clientInfo": {
+                        "name": self.config.client_name,
+                        "version": self.config.client_version,
+                    },
+                },
+            },
         }
-        headers = {"content-type": "application/json"}
+        headers = {
+            "content-type": "application/json",
+            "MCP-Protocol-Version": self.config.protocol_version,
+            "Mcp-Method": "tools/call",
+            "Mcp-Name": permit.tool,
+        }
         if self.config.bearer_token:
             headers["authorization"] = f"Bearer {self.config.bearer_token}"
 
