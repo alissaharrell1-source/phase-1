@@ -24,6 +24,38 @@ def test_jit_authorizer_binds_scope_and_tool() -> None:
     assert permit.contract_id == intent.contract_id
     assert permit.tool == "echo"
 
+
+def test_jit_authorizer_binds_tenant_and_propagates_it() -> None:
+    intent = IntentContract(contract_id=uuid4(), tenant_id="tenant-a", purpose="echo-purpose",
+                            tool="echo", operation="run",
+                            expires_at=datetime.now(UTC) + timedelta(minutes=1))
+    claims = TokenClaims(agent_id="agent-1", requester_id="requester-1", tenant_id="tenant-a",
+                         intent_scope="echo-purpose", exp=int(datetime.now(UTC).timestamp()) + 60,
+                         iss="madva", aud="vie-gateway", jti="jti-tenant")
+    permit = JITAuthorizer(require_tenant_binding=True).authorize(claims, intent, "echo", "run")
+    assert permit.tenant_id == "tenant-a"
+
+
+def test_jit_authorizer_rejects_tenant_mismatch() -> None:
+    intent = IntentContract(contract_id=uuid4(), tenant_id="tenant-b", purpose="echo-purpose",
+                            tool="echo", operation="run",
+                            expires_at=datetime.now(UTC) + timedelta(minutes=1))
+    claims = TokenClaims(agent_id="agent-1", requester_id="requester-1", tenant_id="tenant-a",
+                         intent_scope="echo-purpose", exp=int(datetime.now(UTC).timestamp()) + 60,
+                         iss="madva", aud="vie-gateway", jti="jti-tenant-mismatch")
+    with pytest.raises(AuthorizationError, match="tenant_mismatch"):
+        JITAuthorizer(require_tenant_binding=True).authorize(claims, intent, "echo", "run")
+
+
+def test_jit_authorizer_requires_tenant_in_production_mode() -> None:
+    intent = IntentContract(contract_id=uuid4(), purpose="echo-purpose", tool="echo", operation="run",
+                            expires_at=datetime.now(UTC) + timedelta(minutes=1))
+    claims = TokenClaims(agent_id="agent-1", requester_id="requester-1", intent_scope="echo-purpose",
+                         exp=int(datetime.now(UTC).timestamp()) + 60, iss="madva", aud="vie-gateway",
+                         jti="jti-tenant-required")
+    with pytest.raises(AuthorizationError, match="tenant_binding_required"):
+        JITAuthorizer(require_tenant_binding=True).authorize(claims, intent, "echo", "run")
+
 def test_jit_authorizer_rejects_scope_mismatch() -> None:
     intent = IntentContract(contract_id=uuid4(), purpose="approved", tool="echo", operation="run",
                             expires_at=datetime.now(UTC) + timedelta(minutes=1))

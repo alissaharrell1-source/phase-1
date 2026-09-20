@@ -11,6 +11,7 @@ class StrictModel(BaseModel):
 class IntentContract(StrictModel):
     contract_id: UUID
     schema_version: str = "1.0.0"
+    tenant_id: str | None = None
     purpose: str = Field(min_length=1)
     tool: str = Field(min_length=1)
     operation: str = Field(min_length=1)
@@ -28,6 +29,7 @@ class TokenClaims(StrictModel):
     model_config = ConfigDict(extra="ignore")
     agent_id: str = Field(min_length=1)
     requester_id: str = Field(min_length=1)
+    tenant_id: str | None = None
     intent_scope: str = Field(min_length=1)
     exp: int
     iss: str
@@ -44,6 +46,7 @@ class Permit(StrictModel):
     permit_id: UUID
     agent_id: str
     requester_id: str
+    tenant_id: str | None = None
     intent_scope: str
     tool: str
     operation: str
@@ -64,6 +67,7 @@ class AuditReceipt(StrictModel):
     correlation_id: UUID
     contract_id: UUID
     permit_id: UUID
+    tenant_id: str | None = None
     trace_id: str
     verification: Literal["pass", "conditional_pass", "fail", "needs_investigation"]
     findings: list[str] = Field(default_factory=list)

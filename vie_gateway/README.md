@@ -35,6 +35,8 @@ Set `MADVA_AUDIT_LOG_PATH` to persist audit receipts in an append-only SHA-256 h
 
 Set `MADVA_AUDIT_HOST_PATH` to a writable, persistent host directory and mount it at `/var/lib/madva/audit`. The deployment owner is responsible for provisioning that directory with least-privilege permissions and backing it up.
 
+Tenant isolation is enabled automatically in production. The validated token and Intent Contract must both carry the same `tenant_id`; the value is propagated into the JIT permit and audit receipt. Set `MADVA_REQUIRE_TENANT_BINDING=true` to enable the same enforcement in non-production environments.
+
 `Dockerfile` builds the gateway as a non-root user. `compose.yaml` supplies a hardened local deployment profile; provide secrets and endpoint values through the environment or an external secret manager, never by committing them to the file.
 
 Copy `.env.example` to the deployment environment and replace every placeholder with values from the selected identity provider, image registry, secret manager, and OTLP collector. Do not commit the resulting `.env` file.

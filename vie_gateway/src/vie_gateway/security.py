@@ -71,8 +71,16 @@ class TokenValidator:
             raise AuthorizationError("invalid_claims") from exc
 
 class JITAuthorizer:
+    def __init__(self, require_tenant_binding: bool = False) -> None:
+        self.require_tenant_binding = require_tenant_binding
+
     def authorize(self, claims: TokenClaims, intent: IntentContract, tool: str, operation: str,
                   arguments: dict[str, Any] | None = None) -> Permit:
+        if self.require_tenant_binding and not claims.tenant_id:
+            raise AuthorizationError("tenant_binding_required")
+        if claims.tenant_id != intent.tenant_id:
+            if self.require_tenant_binding or claims.tenant_id is not None or intent.tenant_id is not None:
+                raise AuthorizationError("tenant_mismatch")
         if claims.intent_scope != intent.purpose:
             raise AuthorizationError("intent_scope_mismatch")
         if tool != intent.tool or operation != intent.operation:
@@ -88,6 +96,7 @@ class JITAuthorizer:
             except Exception as exc:
                 raise AuthorizationError("tool_arguments_schema_violation") from exc
         return Permit(permit_id=uuid4(), agent_id=claims.agent_id, requester_id=claims.requester_id,
+                      tenant_id=claims.tenant_id,
                       intent_scope=claims.intent_scope, tool=tool, operation=operation,
                       contract_id=intent.contract_id,
                       expires_at=min(intent.expires_at, datetime.now(UTC) + timedelta(minutes=5)))

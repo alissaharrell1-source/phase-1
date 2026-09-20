@@ -22,7 +22,12 @@ async def _echo(arguments: dict[str, object]) -> dict[str, object]:
 def create_app() -> FastAPI:
     app = FastAPI(title="MADVA VIE Gateway", version="0.1.0")
     configure_tracing()
-    validator, authorizer = TokenValidator(), JITAuthorizer()
+    validator = TokenValidator()
+    require_tenant_binding = (
+        os.environ.get("MADVA_PRODUCTION", "false").lower() == "true"
+        or os.environ.get("MADVA_REQUIRE_TENANT_BINDING", "false").lower() == "true"
+    )
+    authorizer = JITAuthorizer(require_tenant_binding=require_tenant_binding)
     oidc_validator = None
     if os.environ.get("MADVA_OIDC_JWKS_URL"):
         oidc_validator = OIDCTokenValidator(

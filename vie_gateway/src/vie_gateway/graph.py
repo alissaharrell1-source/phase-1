@@ -144,5 +144,9 @@ def default_dependencies() -> GraphDependencies:
                            else DenyAllCredentialProvider())
     audit_path = os.environ.get("MADVA_AUDIT_LOG_PATH")
     audit_store = JsonlAuditStore(audit_path) if audit_path else None
-    return GraphDependencies(TokenValidator(), oidc_validator, JITAuthorizer(), IntentSigner(None), credential_provider,
+    require_tenant_binding = (
+        os.environ.get("MADVA_PRODUCTION", "false").lower() == "true"
+        or os.environ.get("MADVA_REQUIRE_TENANT_BINDING", "false").lower() == "true"
+    )
+    return GraphDependencies(TokenValidator(), oidc_validator, JITAuthorizer(require_tenant_binding), IntentSigner(None), credential_provider,
                              EphemeralRunner({"echo": _echo}), Verifier(), AuditTracer(), audit_store)
