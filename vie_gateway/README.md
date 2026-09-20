@@ -47,3 +47,11 @@ docker compose -f compose.dev.yaml --profile observability up --build
 ```
 
 Then open `http://localhost:16686` for Jaeger and `http://localhost:8000/healthz` for the gateway. Add `--profile identity --profile secrets` when you want the local Keycloak and Vault services as well.
+
+The local Keycloak profile imports `keycloak/madva-local-realm.json`. It is a demo-only realm with a service-account client and the three MADVA token-binding claims. Never expose it publicly or reuse its credentials. The OIDC endpoints are:
+
+```text
+Issuer: http://localhost:8080/realms/madva-local
+JWKS:   http://localhost:8080/realms/madva-local/protocol/openid-connect/certs
+Token:  http://localhost:8080/realms/madva-local/protocol/openid-connect/token
+```
