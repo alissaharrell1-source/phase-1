@@ -57,6 +57,8 @@ def test_docker_runner_mounts_only_opaque_read_only_lease() -> None:
     assert "type=bind" in joined
     assert "readonly" in joined
     assert "vault://payments/api" not in joined
+    assert command[-1].startswith("madva/tool@sha256:")
+    assert command.index("--mount") > command.index("1.0")
 
 def test_trace_adapter_has_safe_fallback_without_active_span() -> None:
     fallback = "local-correlation"

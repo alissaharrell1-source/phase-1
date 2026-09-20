@@ -77,7 +77,7 @@ class DockerRunner:
         if cidfile:
             command.extend(["--cidfile", cidfile])
         for lease in credential_leases or []:
-            command[-1:0] = ["--mount", f"type=bind,src={lease.host_path},dst={lease.container_path},readonly"]
+            command.extend(["--mount", f"type=bind,src={lease.host_path},dst={lease.container_path},readonly"])
         command.append(self.config.image)
         return command
 
