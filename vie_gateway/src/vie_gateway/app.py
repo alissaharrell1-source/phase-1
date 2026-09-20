@@ -11,7 +11,7 @@ from .security import IntentSigner, JITAuthorizer, OIDCTokenValidator, TokenVali
 from .verification import Verifier
 from .telemetry import AuditTracer, configure_tracing
 from .graph import GraphDependencies, build_vie_graph
-from .credentials import DenyAllCredentialProvider
+from .credentials import DenyAllCredentialProvider, VaultCredentialProvider
 
 async def _echo(arguments: dict[str, object]) -> dict[str, object]:
     return {"echo": arguments}
@@ -31,8 +31,11 @@ def create_app() -> FastAPI:
     runner: Runner = (DockerRunner(DockerConfig(image=runtime_image))
                       if runtime_image else EphemeralRunner({"echo": _echo}))
     verifier, tracer = Verifier(), AuditTracer()
+    credential_provider = (VaultCredentialProvider(os.environ["VAULT_ADDR"], os.environ["VAULT_TOKEN"])
+                           if os.environ.get("VAULT_ADDR") and os.environ.get("VAULT_TOKEN")
+                           else DenyAllCredentialProvider())
     graph = build_vie_graph(GraphDependencies(validator, oidc_validator, authorizer, IntentSigner(None),
-                                              DenyAllCredentialProvider(), runner, verifier, tracer))
+                                              credential_provider, runner, verifier, tracer))
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

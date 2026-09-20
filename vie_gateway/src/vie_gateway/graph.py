@@ -80,6 +80,7 @@ def build_vie_graph(dependencies: GraphDependencies):
             return {"stage": "failed", "error": str(exc)}
 
     async def infrastructure(state: VIEState) -> VIEState:
+        leases = []
         try:
             intent = state["intent"]
             leases = [await dependencies.credential_provider.acquire(ref, state["correlation_id"], intent.expires_at)
@@ -88,6 +89,9 @@ def build_vie_graph(dependencies: GraphDependencies):
             return {"execution": execution, "stage": "infrastructure_complete"}
         except (RuntimeErrorBoundary, PermissionError) as exc:
             return {"stage": "failed", "error": str(exc)}
+        finally:
+            for lease in leases:
+                await dependencies.credential_provider.release(lease)
 
     async def verification(state: VIEState) -> VIEState:
         intent = state["intent"]
@@ -124,6 +128,9 @@ def default_dependencies() -> GraphDependencies:
             issuer=os.environ.get("MADVA_OIDC_ISSUER", ""),
             audience=os.environ.get("MADVA_OIDC_AUDIENCE", "vie-gateway"),
         )
-    from .credentials import DenyAllCredentialProvider
-    return GraphDependencies(TokenValidator(), oidc_validator, JITAuthorizer(), IntentSigner(None), DenyAllCredentialProvider(),
+    from .credentials import DenyAllCredentialProvider, VaultCredentialProvider
+    credential_provider = (VaultCredentialProvider(os.environ["VAULT_ADDR"], os.environ["VAULT_TOKEN"])
+                           if os.environ.get("VAULT_ADDR") and os.environ.get("VAULT_TOKEN")
+                           else DenyAllCredentialProvider())
+    return GraphDependencies(TokenValidator(), oidc_validator, JITAuthorizer(), IntentSigner(None), credential_provider,
                              EphemeralRunner({"echo": _echo}), Verifier(), AuditTracer())

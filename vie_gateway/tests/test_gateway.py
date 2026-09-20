@@ -1,4 +1,6 @@
 from datetime import UTC, datetime, timedelta
+import os
+from pathlib import Path
 from uuid import uuid4
 import pytest
 from vie_gateway.contracts import IntentContract, TokenClaims
@@ -7,7 +9,7 @@ from vie_gateway.runtime import DockerConfig, DockerRunner
 from vie_gateway.telemetry import AuditTracer
 from vie_gateway.contracts import ExecutionResult, Permit
 from vie_gateway.verification import Verifier
-from vie_gateway.credentials import CredentialLease
+from vie_gateway.credentials import CredentialLease, VaultCredentialProvider
 from vie_gateway.dlp import DLPScanner
 
 def test_jit_authorizer_binds_scope_and_tool() -> None:
@@ -90,6 +92,36 @@ def test_verifier_does_not_assume_cleanup_succeeded() -> None:
     receipt = Verifier().verify(uuid4(), intent, permit, result)
     assert receipt.cleanup_status == "unknown"
     assert "cleanup_not_verified" in receipt.findings
+
+
+@pytest.mark.asyncio
+async def test_vault_provider_writes_and_releases_opaque_lease(tmp_path) -> None:
+    import httpx
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/secret/data/tool"
+        assert request.headers["X-Vault-Token"] == "test-vault-token"
+        return httpx.Response(200, json={"data": {"data": {"api_key": "secret-value"}}})
+
+    provider = VaultCredentialProvider("http://vault", "test-vault-token",
+                                       transport=httpx.MockTransport(handler), lease_root=str(tmp_path))
+    lease = await provider.acquire("vault://secret/tool#api_key", uuid4(),
+                                   datetime.now(UTC) + timedelta(minutes=1))
+    path = tmp_path / Path(lease.host_path).relative_to(tmp_path)
+    assert path.read_text(encoding="utf-8") == "secret-value"
+    if os.name != "nt":
+        assert path.stat().st_mode & 0o777 == 0o600
+    assert "secret-value" not in lease.model_dump_json()
+    await provider.release(lease)
+    assert not path.exists()
+
+
+@pytest.mark.asyncio
+async def test_vault_provider_rejects_invalid_reference(tmp_path) -> None:
+    provider = VaultCredentialProvider("http://vault", "test-vault-token", lease_root=str(tmp_path))
+    with pytest.raises(PermissionError, match="invalid_vault_reference"):
+        await provider.acquire("https://example.invalid/secret", uuid4(),
+                               datetime.now(UTC) + timedelta(minutes=1))
 
 def test_intent_signer_requires_and_verifies_signature(monkeypatch) -> None:
     secret = "intent-secret"
