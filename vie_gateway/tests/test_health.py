@@ -28,13 +28,14 @@ def test_production_readiness_requires_security_and_isolation(monkeypatch) -> No
     assert "missing_madva_oidc_jwks_url" in response.json()["issues"]
 
 
-def test_production_readiness_accepts_mcp_upstream(monkeypatch) -> None:
+def test_production_readiness_accepts_mcp_upstream(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("MADVA_PRODUCTION", "true")
     monkeypatch.setenv("MADVA_OIDC_JWKS_URL", "https://issuer.example/jwks")
     monkeypatch.setenv("MADVA_OIDC_ISSUER", "https://issuer.example")
     monkeypatch.setenv("MADVA_INTENT_SECRET", "intent-secret")
     monkeypatch.setenv("MADVA_MCP_UPSTREAM_URL", "https://tools.example/mcp")
     monkeypatch.setenv("MADVA_MCP_UPSTREAM_ALLOWED_HOSTS", "tools.example")
+    monkeypatch.setenv("MADVA_AUDIT_LOG_PATH", str(tmp_path / "receipts.jsonl"))
     monkeypatch.delenv("MADVA_RUNTIME_IMAGE", raising=False)
     with TestClient(create_app()) as client:
         response = client.get("/readyz")
@@ -42,13 +43,14 @@ def test_production_readiness_accepts_mcp_upstream(monkeypatch) -> None:
     assert response.json() == {"status": "ready"}
 
 
-def test_production_readiness_rejects_unallowlisted_mcp_upstream(monkeypatch) -> None:
+def test_production_readiness_rejects_unallowlisted_mcp_upstream(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("MADVA_PRODUCTION", "true")
     monkeypatch.setenv("MADVA_OIDC_JWKS_URL", "https://issuer.example/jwks")
     monkeypatch.setenv("MADVA_OIDC_ISSUER", "https://issuer.example")
     monkeypatch.setenv("MADVA_INTENT_SECRET", "intent-secret")
     monkeypatch.setenv("MADVA_MCP_UPSTREAM_URL", "https://tools.example/mcp")
     monkeypatch.delenv("MADVA_MCP_UPSTREAM_ALLOWED_HOSTS", raising=False)
+    monkeypatch.setenv("MADVA_AUDIT_LOG_PATH", str(tmp_path / "receipts.jsonl"))
     monkeypatch.delenv("MADVA_RUNTIME_IMAGE", raising=False)
     with TestClient(create_app()) as client:
         response = client.get("/readyz")

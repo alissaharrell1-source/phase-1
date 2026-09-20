@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 from langgraph.graph import END, StateGraph
 
+from .audit_store import AuditStore, JsonlAuditStore
 from .contracts import AuditReceipt, ExecutionResult, IntentContract, MCPToolCall, Permit, TokenClaims
 from .credentials import CredentialProvider
 from .runtime import EphemeralRunner, Runner, RuntimeErrorBoundary
@@ -40,6 +41,7 @@ class GraphDependencies:
     runner: Runner
     verifier: Verifier
     tracer: AuditTracer
+    audit_store: AuditStore | None = None
 
 
 def build_vie_graph(dependencies: GraphDependencies):
@@ -106,6 +108,8 @@ def build_vie_graph(dependencies: GraphDependencies):
                 span.set_attribute("verification.finding_count", str(len(receipt.findings)))
                 span.set_attribute("verification.execution_status", receipt.execution_status)
                 span.set_attribute("verification.cleanup_status", receipt.cleanup_status)
+        if dependencies.audit_store is not None:
+            await dependencies.audit_store.append(receipt)
         return {"receipt": receipt, "stage": "verification_complete"}
 
     def route(state: VIEState) -> str:
@@ -138,5 +142,7 @@ def default_dependencies() -> GraphDependencies:
     credential_provider = (VaultCredentialProvider(os.environ["VAULT_ADDR"], os.environ["VAULT_TOKEN"])
                            if os.environ.get("VAULT_ADDR") and os.environ.get("VAULT_TOKEN")
                            else DenyAllCredentialProvider())
+    audit_path = os.environ.get("MADVA_AUDIT_LOG_PATH")
+    audit_store = JsonlAuditStore(audit_path) if audit_path else None
     return GraphDependencies(TokenValidator(), oidc_validator, JITAuthorizer(), IntentSigner(None), credential_provider,
-                             EphemeralRunner({"echo": _echo}), Verifier(), AuditTracer())
+                             EphemeralRunner({"echo": _echo}), Verifier(), AuditTracer(), audit_store)

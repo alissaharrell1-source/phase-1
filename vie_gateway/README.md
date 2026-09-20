@@ -9,6 +9,7 @@ Initial modular scaffold for the Verified Intent Execution Gateway.
 - `verification.py` — post-execution contract, output-schema, and DLP comparison with audit receipt generation.
 - `dlp.py` — lightweight token-leakage scanner for the execution boundary; full DSPM remains deployment-specific.
 - `telemetry.py` — OpenTelemetry SDK/span adapter with optional OTLP HTTP export.
+- `audit_store.py` — fsync-backed append-only audit receipt chain with tamper detection.
 - `credentials.py` — deny-by-default credential lease interface for vault-backed, read-only runtime mounts.
 - `app.py` — FastAPI MCP JSON-RPC proxy.
 - MCP failures are returned as structured JSON-RPC errors with stable codes; transport-level HTTP success does not imply tool authorization or execution success.
@@ -29,6 +30,10 @@ The development Compose profile includes a small demo MCP server under `examples
 Set `MADVA_INTENT_SECRET` to require HMAC-signed Intent Contracts. Without it, unsigned contracts remain available for local development and tests.
 
 Set `MADVA_PRODUCTION=true` to make readiness require OIDC/JWKS configuration, signed Intent Contracts, and either an immutable Docker runtime image or an MCP upstream with an explicit host allowlist.
+
+Set `MADVA_AUDIT_LOG_PATH` to persist audit receipts in an append-only SHA-256 hash chain. Production readiness requires this setting. Stored records contain receipt metadata only; tool arguments, tool output, credentials, and bearer tokens are not persisted.
+
+Set `MADVA_AUDIT_HOST_PATH` to a writable, persistent host directory and mount it at `/var/lib/madva/audit`. The deployment owner is responsible for provisioning that directory with least-privilege permissions and backing it up.
 
 `Dockerfile` builds the gateway as a non-root user. `compose.yaml` supplies a hardened local deployment profile; provide secrets and endpoint values through the environment or an external secret manager, never by committing them to the file.
 

@@ -10,10 +10,14 @@ services:
       MADVA_OIDC_AUDIENCE: ${MADVA_OIDC_AUDIENCE:-vie-gateway}
       MADVA_INTENT_SECRET: ${MADVA_INTENT_SECRET:?set intent secret}
       MADVA_RUNTIME_IMAGE: ${MADVA_RUNTIME_IMAGE:?set immutable runtime image}
+      MADVA_AUDIT_LOG_PATH: /var/lib/madva/audit/receipts.jsonl
+      MADVA_AUDIT_HOST_PATH: ${MADVA_AUDIT_HOST_PATH:?set audit host path}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - ${MADVA_AUDIT_HOST_PATH}:/var/lib/madva/audit
     cap_drop:
       - ALL
     security_opt:

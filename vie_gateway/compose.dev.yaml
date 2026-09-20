@@ -11,6 +11,7 @@ services:
       MADVA_MCP_UPSTREAM_URL: http://mcp-upstream:9000/mcp
       MADVA_MCP_UPSTREAM_ALLOWED_HOSTS: mcp-upstream
       MADVA_MCP_UPSTREAM_TOKEN: local-upstream-token
+      MADVA_AUDIT_LOG_PATH: /var/lib/madva/audit/receipts.jsonl
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
       mcp-upstream:
@@ -18,6 +19,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - ./.data/audit:/var/lib/madva/audit
     cap_drop:
       - ALL
     security_opt:
