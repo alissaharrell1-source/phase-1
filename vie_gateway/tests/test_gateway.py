@@ -3,9 +3,11 @@ import os
 from pathlib import Path
 from uuid import uuid4
 import pytest
-from vie_gateway.contracts import IntentContract, TokenClaims
+from vie_gateway.contracts import IntentContract, MCPToolCall, TokenClaims
+from vie_gateway.credentials import DenyAllCredentialProvider
+from vie_gateway.graph import GraphDependencies, build_vie_graph
 from vie_gateway.security import AuthorizationError, IntentSigner, JITAuthorizer, OIDCTokenValidator
-from vie_gateway.runtime import DockerConfig, DockerRunner, RuntimeErrorBoundary
+from vie_gateway.runtime import DockerConfig, DockerRunner, EphemeralRunner, RuntimeErrorBoundary
 from vie_gateway.telemetry import AuditTracer
 from vie_gateway.contracts import ExecutionResult, Permit
 from vie_gateway.verification import Verifier
@@ -64,6 +66,71 @@ def test_docker_runner_mounts_only_opaque_read_only_lease() -> None:
 def test_trace_adapter_has_safe_fallback_without_active_span() -> None:
     fallback = "local-correlation"
     assert AuditTracer().current_trace_id(fallback) == fallback
+
+
+@pytest.mark.asyncio
+async def test_verification_span_records_safe_outcome_attributes() -> None:
+    from contextlib import contextmanager
+
+    contract_id = uuid4()
+    intent = IntentContract(
+        contract_id=contract_id, purpose="approved", tool="echo", operation="run",
+        output_schema={"type": "object", "required": ["status"]},
+        expires_at=datetime.now(UTC) + timedelta(minutes=1),
+    )
+    claims = TokenClaims(
+        agent_id="agent-1", requester_id="requester-1", intent_scope="approved",
+        exp=int(datetime.now(UTC).timestamp()) + 60, iss="madva", aud="vie-gateway", jti="jti-graph",
+    )
+
+    class Validator:
+        def validate(self, token: str) -> TokenClaims:
+            return claims
+
+    class Span:
+        def __init__(self) -> None:
+            self.attributes: dict[str, str] = {}
+
+        def set_attribute(self, key: str, value: str) -> None:
+            self.attributes[key] = value
+
+    class Tracer:
+        def __init__(self) -> None:
+            self.span_value = Span()
+
+        @contextmanager
+        def span(self, name: str, **attributes: str):
+            self.span_value.attributes.update(attributes)
+            yield self.span_value
+
+        def current_trace_id(self, fallback: str) -> str:
+            return "trace-graph"
+
+        def current_span(self) -> Span:
+            return self.span_value
+
+    async def echo(arguments: dict[str, object]) -> dict[str, object]:
+        return {"status": "ok"}
+
+    tracer = Tracer()
+    graph = build_vie_graph(GraphDependencies(
+        token_validator=Validator(), oidc_validator=None, authorizer=JITAuthorizer(),
+        intent_signer=IntentSigner(""), credential_provider=DenyAllCredentialProvider(),
+        runner=EphemeralRunner({"echo": echo}), verifier=Verifier(), tracer=tracer,
+    ))
+    call = MCPToolCall(
+        jsonrpc="2.0", id="call-1", method="tools/call",
+        params={"tool": "echo", "operation": "run", "arguments": {"value": "hello"},
+                "intent_contract": intent.model_dump(mode="json")},
+    )
+
+    state = await graph.ainvoke({"call": call, "authorization": "Bearer test-token"})
+
+    assert state["receipt"].trace_id == "trace-graph"
+    assert tracer.span_value.attributes["verification.outcome"] == "pass"
+    assert tracer.span_value.attributes["verification.finding_count"] == "0"
+    assert tracer.span_value.attributes["verification.execution_status"] == "completed"
+    assert tracer.span_value.attributes["verification.cleanup_status"] == "verified"
 
 def test_verifier_rejects_output_outside_intent_contract() -> None:
     contract_id = uuid4()

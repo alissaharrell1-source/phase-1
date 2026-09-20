@@ -100,6 +100,12 @@ def build_vie_graph(dependencies: GraphDependencies):
             receipt = dependencies.verifier.verify(
                 state["correlation_id"], intent, permit, state["execution"],
                 trace_id=dependencies.tracer.current_trace_id(f"local-{state['correlation_id']}"))
+            span = dependencies.tracer.current_span()
+            if span is not None:
+                span.set_attribute("verification.outcome", receipt.verification)
+                span.set_attribute("verification.finding_count", str(len(receipt.findings)))
+                span.set_attribute("verification.execution_status", receipt.execution_status)
+                span.set_attribute("verification.cleanup_status", receipt.cleanup_status)
         return {"receipt": receipt, "stage": "verification_complete"}
 
     def route(state: VIEState) -> str:

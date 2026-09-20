@@ -46,6 +46,13 @@ class AuditTracer:
         context = trace.get_current_span().get_span_context()
         return format(context.trace_id, "032x") if context.is_valid else fallback
 
+    def current_span(self) -> Span | None:
+        """Return the active span so callers can add bounded, sanitized attributes."""
+        if trace is None:
+            return None
+        current = trace.get_current_span()
+        return current if current.get_span_context().is_valid else None
+
     @contextmanager
     def span(self, name: str, **attributes: str) -> Iterator[Span | None]:
         if self._tracer is None:
