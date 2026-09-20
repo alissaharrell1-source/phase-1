@@ -40,10 +40,15 @@ class VaultCredentialProvider:
     enter graph state, logs, command arguments, or the CredentialLease model.
     """
 
-    def __init__(self, address: str, token: str, *, transport: httpx.AsyncBaseTransport | None = None,
+    def __init__(self, address: str, token: str | None = None, *, token_file: str | None = None,
+                 namespace: str | None = None, require_tls: bool = False,
+                 transport: httpx.AsyncBaseTransport | None = None,
                  lease_root: str | None = None) -> None:
         self.address = address.rstrip("/")
         self.token = token
+        self.token_file = Path(token_file) if token_file else None
+        self.namespace = namespace
+        self.require_tls = require_tls
         self.transport = transport
         self.lease_root = Path(lease_root) if lease_root else None
 
@@ -57,11 +62,44 @@ class VaultCredentialProvider:
             raise PermissionError("invalid_vault_reference")
         return parts[0], parts[1], field
 
+    def _read_token(self) -> str:
+        try:
+            token = self.token_file.read_text(encoding="utf-8").strip() if self.token_file else (self.token or "")
+        except OSError as exc:
+            raise PermissionError("vault_authentication_unavailable") from exc
+        if not token:
+            raise PermissionError("vault_authentication_unavailable")
+        return token
+
+    @staticmethod
+    def _sanitize_file(path: Path) -> None:
+        try:
+            size = path.stat().st_size
+            with path.open("r+b") as handle:
+                remaining = size
+                block = b"\x00" * 4096
+                while remaining:
+                    chunk = block if remaining >= len(block) else b"\x00" * remaining
+                    handle.write(chunk)
+                    remaining -= len(chunk)
+                handle.flush()
+                os.fsync(handle.fileno())
+            path.unlink(missing_ok=True)
+        except OSError:
+            path.unlink(missing_ok=True)
+
     async def acquire(self, reference: str, session_id: UUID, expires_at: datetime) -> CredentialLease:
+        if self.require_tls and not self.address.startswith("https://"):
+            raise PermissionError("vault_tls_required")
+        if expires_at.tzinfo is None or expires_at <= datetime.now(expires_at.tzinfo):
+            raise PermissionError("credential_lease_expired")
         mount, path, field = self._parse_reference(reference)
         url = f"{self.address}/v1/{mount}/data/{path}"
+        headers = {"X-Vault-Token": self._read_token()}
+        if self.namespace:
+            headers["X-Vault-Namespace"] = self.namespace
         async with httpx.AsyncClient(timeout=5.0, transport=self.transport) as client:
-            response = await client.get(url, headers={"X-Vault-Token": self.token})
+            response = await client.get(url, headers=headers)
         if response.status_code != 200:
             raise PermissionError("vault_credential_unavailable")
         try:
@@ -90,7 +128,7 @@ class VaultCredentialProvider:
     async def release(self, lease: CredentialLease) -> None:
         path = Path(lease.host_path)
         try:
-            path.unlink(missing_ok=True)
+            self._sanitize_file(path)
             path.parent.rmdir()
         except OSError:
             return None

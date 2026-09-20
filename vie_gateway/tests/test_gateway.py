@@ -6,7 +6,7 @@ import pytest
 from vie_gateway.contracts import IntentContract, MCPToolCall, TokenClaims
 from vie_gateway.credentials import DenyAllCredentialProvider
 from vie_gateway.graph import GraphDependencies, build_vie_graph
-from vie_gateway.security import AuthorizationError, IntentSigner, JITAuthorizer, OIDCTokenValidator
+from vie_gateway.security import AuthorizationError, IntentSigner, JITAuthorizer, OIDCTokenValidator, TokenValidator
 from vie_gateway.runtime import DockerConfig, DockerRunner, EphemeralRunner, RuntimeErrorBoundary
 from vie_gateway.telemetry import AuditTracer
 from vie_gateway.contracts import ExecutionResult, Permit
@@ -163,6 +163,8 @@ async def test_verification_span_records_safe_outcome_attributes() -> None:
     assert tracer.span_value.attributes["verification.finding_count"] == "0"
     assert tracer.span_value.attributes["verification.execution_status"] == "completed"
     assert tracer.span_value.attributes["verification.cleanup_status"] == "verified"
+    assert tracer.span_value.attributes["audit.contract_id"] == str(contract_id)
+    assert "hello" not in str(tracer.span_value.attributes)
 
 def test_verifier_rejects_output_outside_intent_contract() -> None:
     contract_id = uuid4()
@@ -223,6 +225,36 @@ async def test_vault_provider_rejects_invalid_reference(tmp_path) -> None:
     provider = VaultCredentialProvider("http://vault", "test-vault-token", lease_root=str(tmp_path))
     with pytest.raises(PermissionError, match="invalid_vault_reference"):
         await provider.acquire("https://example.invalid/secret", uuid4(),
+                               datetime.now(UTC) + timedelta(minutes=1))
+
+
+@pytest.mark.asyncio
+async def test_vault_provider_supports_short_lived_token_file_and_namespace(tmp_path) -> None:
+    import httpx
+
+    token_file = tmp_path / "vault-token"
+    token_file.write_text("short-lived-token\n", encoding="utf-8")
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["X-Vault-Token"] == "short-lived-token"
+        assert request.headers["X-Vault-Namespace"] == "tenant-a"
+        return httpx.Response(200, json={"data": {"data": {"api_key": "secret-value"}}})
+
+    provider = VaultCredentialProvider("https://vault", token_file=str(token_file), namespace="tenant-a",
+                                       transport=httpx.MockTransport(handler), lease_root=str(tmp_path))
+    lease = await provider.acquire("vault://secret/tool#api_key", uuid4(),
+                                   datetime.now(UTC) + timedelta(minutes=1))
+    lease_path = Path(lease.host_path)
+    await provider.release(lease)
+    assert not lease_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_vault_provider_requires_tls_when_enabled(tmp_path) -> None:
+    provider = VaultCredentialProvider("http://vault", "test-vault-token", require_tls=True,
+                                       lease_root=str(tmp_path))
+    with pytest.raises(PermissionError, match="vault_tls_required"):
+        await provider.acquire("vault://secret/tool#api_key", uuid4(),
                                datetime.now(UTC) + timedelta(minutes=1))
 
 def test_intent_signer_requires_and_verifies_signature(monkeypatch) -> None:
@@ -441,3 +473,15 @@ async def test_oidc_validator_accepts_standard_audience_array() -> None:
                                    "vie-gateway", transport=httpx.MockTransport(handler))
     claims = await validator.validate(token)
     assert claims.aud == ["vie-gateway", "account"]
+
+
+def test_hs256_validator_normalizes_oidc_tenant_alias_and_audience_array() -> None:
+    import jwt
+
+    token = jwt.encode(
+        {"agent_id": "agent-1", "requester_id": "requester-1", "intent_scope": "approved",
+         "tenant_id": None, "tid": "tenant-a", "exp": int(datetime.now(UTC).timestamp()) + 60,
+         "iss": "issuer", "aud": ["gateway", "other"], "jti": "jti-local"},
+        "local-secret-with-at-least-32-bytes", algorithm="HS256")
+    claims = TokenValidator(secret="local-secret-with-at-least-32-bytes", issuer="issuer", audience="gateway").validate(token)
+    assert claims.tenant_id == "tenant-a"

@@ -108,6 +108,12 @@ def build_vie_graph(dependencies: GraphDependencies):
                 trace_id=dependencies.tracer.current_trace_id(f"local-{state['correlation_id']}"))
             span = dependencies.tracer.current_span()
             if span is not None:
+                span.set_attribute("audit.receipt_id", str(receipt.receipt_id))
+                span.set_attribute("audit.correlation_id", str(receipt.correlation_id))
+                span.set_attribute("audit.contract_id", str(receipt.contract_id))
+                span.set_attribute("audit.tenant_id", receipt.tenant_id or "")
+                span.set_attribute("audit.policy_id", receipt.policy_id or "")
+                span.set_attribute("audit.policy_version", receipt.policy_version or "")
                 span.set_attribute("verification.outcome", receipt.verification)
                 span.set_attribute("verification.finding_count", str(len(receipt.findings)))
                 span.set_attribute("verification.execution_status", receipt.execution_status)
@@ -143,8 +149,14 @@ def default_dependencies() -> GraphDependencies:
             audience=os.environ.get("MADVA_OIDC_AUDIENCE", "vie-gateway"),
         )
     from .credentials import DenyAllCredentialProvider, VaultCredentialProvider
-    credential_provider = (VaultCredentialProvider(os.environ["VAULT_ADDR"], os.environ["VAULT_TOKEN"])
-                           if os.environ.get("VAULT_ADDR") and os.environ.get("VAULT_TOKEN")
+    vault_addr = os.environ.get("VAULT_ADDR")
+    vault_token = os.environ.get("VAULT_TOKEN")
+    vault_token_file = os.environ.get("VAULT_TOKEN_FILE")
+    credential_provider = (VaultCredentialProvider(
+                               vault_addr, vault_token, token_file=vault_token_file,
+                               namespace=os.environ.get("VAULT_NAMESPACE"),
+                               require_tls=os.environ.get("MADVA_PRODUCTION", "false").lower() == "true")
+                           if vault_addr and (vault_token or vault_token_file)
                            else DenyAllCredentialProvider())
     audit_path = os.environ.get("MADVA_AUDIT_LOG_PATH")
     audit_store = JsonlAuditStore(audit_path) if audit_path else None
@@ -153,5 +165,8 @@ def default_dependencies() -> GraphDependencies:
         or os.environ.get("MADVA_REQUIRE_TENANT_BINDING", "false").lower() == "true"
     )
     policy_registry = PolicyRegistry.from_environment()
-    return GraphDependencies(TokenValidator(), oidc_validator, JITAuthorizer(require_tenant_binding), IntentSigner(None), credential_provider,
+    return GraphDependencies(TokenValidator(
+                                 issuer=os.environ.get("MADVA_TOKEN_ISSUER", "madva"),
+                                 audience=os.environ.get("MADVA_TOKEN_AUDIENCE", "vie-gateway")),
+                             oidc_validator, JITAuthorizer(require_tenant_binding), IntentSigner(None), credential_provider,
                              EphemeralRunner({"echo": _echo}), Verifier(), AuditTracer(), audit_store, policy_registry)

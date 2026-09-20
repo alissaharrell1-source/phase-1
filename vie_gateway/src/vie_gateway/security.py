@@ -37,6 +37,18 @@ class IntentSigner:
 def _decode_part(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
+
+def _normalize_identity_claims(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize common OIDC tenant aliases without weakening the binding."""
+    normalized = dict(payload)
+    tenant_id = normalized.get("tenant_id")
+    tid = normalized.get("tid")
+    if tenant_id is not None and tid is not None and tenant_id != tid:
+        raise AuthorizationError("tenant_claim_mismatch")
+    if tenant_id is None and isinstance(tid, str) and tid:
+        normalized["tenant_id"] = tid
+    return normalized
+
 class TokenValidator:
     """Minimal HS256 boundary; production should use configured OIDC/JWKS verification."""
     def __init__(self, secret: str | None = None, issuer: str = "madva", audience: str = "vie-gateway") -> None:
@@ -61,12 +73,16 @@ class TokenValidator:
         expected = hmac.new(self.secret, f"{encoded_header}.{encoded_payload}".encode(), hashlib.sha256).digest()
         if not hmac.compare_digest(expected, actual):
             raise AuthorizationError("invalid_signature")
-        if payload.get("iss") != self.issuer or payload.get("aud") != self.audience:
+        audience = payload.get("aud")
+        audience_matches = audience == self.audience or (
+            isinstance(audience, list) and self.audience in audience
+        )
+        if payload.get("iss") != self.issuer or not audience_matches:
             raise AuthorizationError("issuer_or_audience_mismatch")
         if not isinstance(payload.get("exp"), int) or payload["exp"] <= int(time.time()):
             raise AuthorizationError("expired_token")
         try:
-            return TokenClaims.model_validate(payload)
+            return TokenClaims.model_validate(_normalize_identity_claims(payload))
         except Exception as exc:
             raise AuthorizationError("invalid_claims") from exc
 
@@ -143,6 +159,6 @@ class OIDCTokenValidator:
             key: Any = RSAAlgorithm.from_jwk(json.dumps(jwk))
             payload = jwt.decode(token, key=key, algorithms=list(self.allowed_algorithms),
                                  issuer=self.issuer, audience=self.audience, options={"require": ["exp", "iss", "aud"]})
-            return TokenClaims.model_validate(payload)
+            return TokenClaims.model_validate(_normalize_identity_claims(payload))
         except (jwt.PyJWTError, ValueError) as exc:
             raise AuthorizationError("oidc_validation_failed") from exc

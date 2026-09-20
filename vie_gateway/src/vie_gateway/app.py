@@ -23,7 +23,10 @@ async def _echo(arguments: dict[str, object]) -> dict[str, object]:
 def create_app() -> FastAPI:
     app = FastAPI(title="MADVA VIE Gateway", version="0.1.0")
     configure_tracing()
-    validator = TokenValidator()
+    validator = TokenValidator(
+        issuer=os.environ.get("MADVA_TOKEN_ISSUER", "madva"),
+        audience=os.environ.get("MADVA_TOKEN_AUDIENCE", "vie-gateway"),
+    )
     require_tenant_binding = (
         os.environ.get("MADVA_PRODUCTION", "false").lower() == "true"
         or os.environ.get("MADVA_REQUIRE_TENANT_BINDING", "false").lower() == "true"
@@ -64,8 +67,14 @@ def create_app() -> FastAPI:
     else:
         runner = (DockerRunner(DockerConfig(image=runtime_image))
                   if runtime_image else EphemeralRunner({"echo": _echo}))
-    credential_provider = (VaultCredentialProvider(os.environ["VAULT_ADDR"], os.environ["VAULT_TOKEN"])
-                           if os.environ.get("VAULT_ADDR") and os.environ.get("VAULT_TOKEN")
+    vault_addr = os.environ.get("VAULT_ADDR")
+    vault_token = os.environ.get("VAULT_TOKEN")
+    vault_token_file = os.environ.get("VAULT_TOKEN_FILE")
+    credential_provider = (VaultCredentialProvider(
+                               vault_addr, vault_token, token_file=vault_token_file,
+                               namespace=os.environ.get("VAULT_NAMESPACE"),
+                               require_tls=os.environ.get("MADVA_PRODUCTION", "false").lower() == "true")
+                           if vault_addr and (vault_token or vault_token_file)
                            else DenyAllCredentialProvider())
     graph = build_vie_graph(GraphDependencies(validator, oidc_validator, authorizer, IntentSigner(None),
                                               credential_provider, runner, verifier, tracer, audit_store,

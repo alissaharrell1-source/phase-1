@@ -14,6 +14,22 @@ except ImportError:  # pragma: no cover - exercised only in minimal installs
 _configured = False
 
 
+def _otlp_headers(raw: str | None) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for item in (raw or "").split(","):
+        if "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        if key.strip() and value.strip():
+            headers[key.strip()] = value.strip()
+    return headers
+
+
+def _otlp_trace_endpoint(endpoint: str) -> str:
+    normalized = endpoint.rstrip("/")
+    return normalized if normalized.endswith("/v1/traces") else f"{normalized}/v1/traces"
+
+
 def configure_tracing(service_name: str = "madva-vie-gateway") -> None:
     """Configure the SDK once; export spans only when an OTLP endpoint is set."""
     global _configured
@@ -26,10 +42,18 @@ def configure_tracing(service_name: str = "madva-vie-gateway") -> None:
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
     except ImportError:
         return
-    provider = TracerProvider(resource=Resource.create({"service.name": service_name}))
-    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    service_name = os.environ.get("OTEL_SERVICE_NAME", service_name)
+    provider = TracerProvider(resource=Resource.create({
+        "service.name": service_name,
+        "service.version": os.environ.get("MADVA_SERVICE_VERSION", "0.1.0"),
+        "deployment.environment": os.environ.get("MADVA_ENVIRONMENT", "unknown"),
+    }))
+    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get("MADVA_SIEM_OTLP_ENDPOINT")
     if endpoint:
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{endpoint.rstrip('/')}/v1/traces")))
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
+            endpoint=_otlp_trace_endpoint(endpoint),
+            headers=_otlp_headers(os.environ.get("OTEL_EXPORTER_OTLP_HEADERS")),
+        )))
     trace.set_tracer_provider(provider)
     _configured = True
 

@@ -15,7 +15,7 @@ Initial modular scaffold for the Verified Intent Execution Gateway.
 - MCP failures are returned as structured JSON-RPC errors with stable codes; transport-level HTTP success does not imply tool authorization or execution success.
 - `/healthz` reports service health; `/readyz` reports whether configured runtime dependencies are available.
 
-The local runner is only a deterministic test adapter. Set `MADVA_OIDC_JWKS_URL`, `MADVA_OIDC_ISSUER`, and `MADVA_OIDC_AUDIENCE` to enable OIDC/JWKS validation; otherwise the local HS256 validator is used. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export traces over OTLP HTTP. The Docker adapter is an execution boundary, not a complete deployment policy: production still requires image admission, credential isolation, vault integration, and teardown verification.
+The local runner is only a deterministic test adapter. Set `MADVA_OIDC_JWKS_URL`, `MADVA_OIDC_ISSUER`, and `MADVA_OIDC_AUDIENCE` to enable OIDC/JWKS validation; otherwise the local HS256 validator is used. OIDC `tid` claims are normalized to `tenant_id` and conflicting tenant claims are rejected. Set `OTEL_EXPORTER_OTLP_ENDPOINT` (or `MADVA_SIEM_OTLP_ENDPOINT`) to export sanitized audit spans to an OTLP collector or SIEM; use `OTEL_EXPORTER_OTLP_HEADERS` for collector authentication. The Docker adapter is an execution boundary, not a complete deployment policy: production still requires image admission, credential isolation, vault integration, and teardown verification.
 
 Set `MADVA_RUNTIME_IMAGE` to an immutable image reference such as `registry.example/tool@sha256:<digest>` to route the Infrastructure graph node through Docker. If it is unset, the in-process runner is used for local tests only.
 
@@ -49,7 +49,7 @@ Copy `.env.example` to the deployment environment and replace every placeholder 
 
 For local infrastructure, `compose.dev.yaml` provides optional profiles for Keycloak (`identity`), Vault (`secrets`), and Jaeger plus the OpenTelemetry Collector (`observability`). These images use demo credentials and are for local development only; do not expose them publicly or reuse their credentials.
 
-Credential references are denied unless a vault-backed `CredentialProvider` is injected. Secret values are never placed in graph state or Docker command arguments.
+Credential references are denied unless a vault-backed `CredentialProvider` is injected. `VAULT_TOKEN_FILE` is preferred over `VAULT_TOKEN` so Vault Agent or an external secret manager can rotate short-lived credentials without restarting the gateway. Production Vault access requires an HTTPS `VAULT_ADDR`; optional `VAULT_NAMESPACE` is sent as a request header. Secret values are never placed in graph state, spans, or Docker command arguments, and lease files are overwritten, fsynced, and removed on release.
 
 ## Run
 
