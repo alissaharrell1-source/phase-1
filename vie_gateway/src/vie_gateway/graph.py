@@ -13,6 +13,7 @@ from .contracts import AuditReceipt, ExecutionResult, IntentContract, MCPToolCal
 from .credentials import CredentialProvider
 from .runtime import EphemeralRunner, Runner, RuntimeErrorBoundary
 from .security import AuthorizationError, IntentSigner, JITAuthorizer, OIDCTokenValidator, TokenValidator
+from .policy import PolicyApprovalError, PolicyRegistry
 from .telemetry import AuditTracer
 from .verification import Verifier
 
@@ -42,6 +43,7 @@ class GraphDependencies:
     verifier: Verifier
     tracer: AuditTracer
     audit_store: AuditStore | None = None
+    policy_registry: PolicyRegistry | None = None
 
 
 def build_vie_graph(dependencies: GraphDependencies):
@@ -75,10 +77,12 @@ def build_vie_graph(dependencies: GraphDependencies):
             oidc = dependencies.oidc_validator
             claims = await oidc.validate(bearer) if oidc is not None else dependencies.token_validator.validate(bearer)
             intent = state["intent"]
+            if dependencies.policy_registry is not None:
+                dependencies.policy_registry.validate_intent(intent)
             permit = dependencies.authorizer.authorize(
                 claims, intent, intent.tool, intent.operation, state.get("arguments", {}))
             return {"claims": claims, "permit": permit, "stage": "security_complete"}
-        except AuthorizationError as exc:
+        except (AuthorizationError, PolicyApprovalError) as exc:
             return {"stage": "failed", "error": str(exc)}
 
     async def infrastructure(state: VIEState) -> VIEState:
@@ -148,5 +152,6 @@ def default_dependencies() -> GraphDependencies:
         os.environ.get("MADVA_PRODUCTION", "false").lower() == "true"
         or os.environ.get("MADVA_REQUIRE_TENANT_BINDING", "false").lower() == "true"
     )
+    policy_registry = PolicyRegistry.from_environment()
     return GraphDependencies(TokenValidator(), oidc_validator, JITAuthorizer(require_tenant_binding), IntentSigner(None), credential_provider,
-                             EphemeralRunner({"echo": _echo}), Verifier(), AuditTracer(), audit_store)
+                             EphemeralRunner({"echo": _echo}), Verifier(), AuditTracer(), audit_store, policy_registry)

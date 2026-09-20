@@ -37,6 +37,8 @@ Set `MADVA_AUDIT_HOST_PATH` to a writable, persistent host directory and mount i
 
 Tenant isolation is enabled automatically in production. The validated token and Intent Contract must both carry the same `tenant_id`; the value is propagated into the JIT permit and audit receipt. Set `MADVA_REQUIRE_TENANT_BINDING=true` to enable the same enforcement in non-production environments.
 
+Policy revisions are bound to an Intent Contract with `policy_id` and `policy_version`. Set `MADVA_POLICY_REGISTRY_PATH` to an administrator-owned JSON registry. Production requires the referenced revision to be registered with status `approved`; draft, pending, rejected, or revoked revisions are denied. The `PolicyRegistry` lifecycle (`submit`, `approve`, `reject`, and `revoke`) provides the approval workflow, and the selected revision is propagated into the permit and audit receipt. Set `MADVA_REQUIRE_APPROVED_POLICY=true` to enforce this in non-production environments.
+
 `Dockerfile` builds the gateway as a non-root user. `compose.yaml` supplies a hardened local deployment profile; provide secrets and endpoint values through the environment or an external secret manager, never by committing them to the file.
 
 Copy `.env.example` to the deployment environment and replace every placeholder with values from the selected identity provider, image registry, secret manager, and OTLP collector. Do not commit the resulting `.env` file.

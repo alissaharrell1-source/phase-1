@@ -97,6 +97,7 @@ class JITAuthorizer:
                 raise AuthorizationError("tool_arguments_schema_violation") from exc
         return Permit(permit_id=uuid4(), agent_id=claims.agent_id, requester_id=claims.requester_id,
                       tenant_id=claims.tenant_id,
+                      policy_id=intent.policy_id, policy_version=intent.policy_version,
                       intent_scope=claims.intent_scope, tool=tool, operation=operation,
                       contract_id=intent.contract_id,
                       expires_at=min(intent.expires_at, datetime.now(UTC) + timedelta(minutes=5)))

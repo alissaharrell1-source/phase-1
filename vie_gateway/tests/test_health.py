@@ -36,6 +36,9 @@ def test_production_readiness_accepts_mcp_upstream(monkeypatch, tmp_path) -> Non
     monkeypatch.setenv("MADVA_MCP_UPSTREAM_URL", "https://tools.example/mcp")
     monkeypatch.setenv("MADVA_MCP_UPSTREAM_ALLOWED_HOSTS", "tools.example")
     monkeypatch.setenv("MADVA_AUDIT_LOG_PATH", str(tmp_path / "receipts.jsonl"))
+    policy_path = tmp_path / "policies.json"
+    policy_path.write_text('{"policies": []}', encoding="utf-8")
+    monkeypatch.setenv("MADVA_POLICY_REGISTRY_PATH", str(policy_path))
     monkeypatch.delenv("MADVA_RUNTIME_IMAGE", raising=False)
     with TestClient(create_app()) as client:
         response = client.get("/readyz")

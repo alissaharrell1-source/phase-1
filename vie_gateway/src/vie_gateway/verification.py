@@ -31,6 +31,7 @@ class Verifier:
                 findings.append("output_schema_violation")
         return AuditReceipt(receipt_id=uuid4(), correlation_id=correlation_id, contract_id=contract.contract_id,
                             permit_id=permit.permit_id, tenant_id=permit.tenant_id,
+                            policy_id=permit.policy_id, policy_version=permit.policy_version,
                             trace_id=trace_id or f"local-{correlation_id}",
                             verification="pass" if not findings else "fail", findings=findings,
                             execution_status=result.status, cleanup_status=result.cleanup_status,

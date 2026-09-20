@@ -12,6 +12,8 @@ class IntentContract(StrictModel):
     contract_id: UUID
     schema_version: str = "1.0.0"
     tenant_id: str | None = None
+    policy_id: str | None = None
+    policy_version: str | None = None
     purpose: str = Field(min_length=1)
     tool: str = Field(min_length=1)
     operation: str = Field(min_length=1)
@@ -47,6 +49,8 @@ class Permit(StrictModel):
     agent_id: str
     requester_id: str
     tenant_id: str | None = None
+    policy_id: str | None = None
+    policy_version: str | None = None
     intent_scope: str
     tool: str
     operation: str
@@ -68,6 +72,8 @@ class AuditReceipt(StrictModel):
     contract_id: UUID
     permit_id: UUID
     tenant_id: str | None = None
+    policy_id: str | None = None
+    policy_version: str | None = None
     trace_id: str
     verification: Literal["pass", "conditional_pass", "fail", "needs_investigation"]
     findings: list[str] = Field(default_factory=list)

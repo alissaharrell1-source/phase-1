@@ -15,6 +15,7 @@ from .graph import GraphDependencies, build_vie_graph
 from .credentials import DenyAllCredentialProvider, VaultCredentialProvider
 from .mcp_upstream import MCPUpstreamConfig, MCPUpstreamRunner
 from .audit_store import JsonlAuditStore
+from .policy import PolicyRegistry
 
 async def _echo(arguments: dict[str, object]) -> dict[str, object]:
     return {"echo": arguments}
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
     verifier, tracer = Verifier(), AuditTracer()
     audit_path = os.environ.get("MADVA_AUDIT_LOG_PATH")
     audit_store = JsonlAuditStore(audit_path) if audit_path else None
+    policy_registry = PolicyRegistry.from_environment()
     runtime_image = os.environ.get("MADVA_RUNTIME_IMAGE")
     upstream_url = os.environ.get("MADVA_MCP_UPSTREAM_URL")
     upstream_allowed_hosts = frozenset(
@@ -66,7 +68,8 @@ def create_app() -> FastAPI:
                            if os.environ.get("VAULT_ADDR") and os.environ.get("VAULT_TOKEN")
                            else DenyAllCredentialProvider())
     graph = build_vie_graph(GraphDependencies(validator, oidc_validator, authorizer, IntentSigner(None),
-                                              credential_provider, runner, verifier, tracer, audit_store))
+                                              credential_provider, runner, verifier, tracer, audit_store,
+                                              policy_registry))
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -91,6 +94,8 @@ def create_app() -> FastAPI:
                 issues.append("missing_madva_mcp_upstream_allowed_hosts")
             if not audit_path:
                 issues.append("missing_madva_audit_log_path")
+            if not os.environ.get("MADVA_POLICY_REGISTRY_PATH"):
+                issues.append("missing_madva_policy_registry_path")
         if issues:
             return JSONResponse(status_code=503, content={"status": "not_ready", "issues": issues})
         return {"status": "ready"}
