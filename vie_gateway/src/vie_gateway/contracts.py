@@ -24,12 +24,14 @@ class IntentContract(StrictModel):
     expires_at: datetime
 
 class TokenClaims(StrictModel):
+    # OIDC providers add standard claims beyond the gateway binding contract.
+    model_config = ConfigDict(extra="ignore")
     agent_id: str = Field(min_length=1)
     requester_id: str = Field(min_length=1)
     intent_scope: str = Field(min_length=1)
     exp: int
     iss: str
-    aud: str
+    aud: str | list[str]
     jti: str = Field(min_length=1)
 
 class MCPToolCall(StrictModel):

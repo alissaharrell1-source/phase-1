@@ -126,3 +126,29 @@ async def test_oidc_validator_verifies_rsa_jwks_token() -> None:
                                    "vie-gateway", transport=httpx.MockTransport(handler))
     claims = await validator.validate(token)
     assert claims.agent_id == "agent-1"
+
+
+@pytest.mark.asyncio
+async def test_oidc_validator_accepts_standard_audience_array() -> None:
+    import jwt
+    import httpx
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from jwt.algorithms import RSAAlgorithm
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_jwk = RSAAlgorithm.to_jwk(private_key.public_key(), as_dict=True)
+    public_jwk["kid"] = "array-audience-key"
+    token = jwt.encode(
+        {"agent_id": "agent-1", "requester_id": "requester-1", "intent_scope": "approved",
+         "exp": int(datetime.now(UTC).timestamp()) + 60, "iss": "https://issuer.example",
+         "aud": ["vie-gateway", "account"], "jti": "jti-array-audience", "sub": "provider-subject",
+         "scope": "openid profile", "iat": int(datetime.now(UTC).timestamp())},
+        private_key, algorithm="RS256", headers={"kid": "array-audience-key"})
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"keys": [public_jwk]})
+
+    validator = OIDCTokenValidator("https://issuer.example/.well-known/jwks.json", "https://issuer.example",
+                                   "vie-gateway", transport=httpx.MockTransport(handler))
+    claims = await validator.validate(token)
+    assert claims.aud == ["vie-gateway", "account"]
