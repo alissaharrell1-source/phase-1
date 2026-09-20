@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -51,3 +52,14 @@ async def test_audit_store_does_not_persist_tool_data(tmp_path) -> None:
     stored = (tmp_path / "receipts.jsonl").read_text(encoding="utf-8")
     assert "tool_arguments" not in stored
     assert "bearer_token" not in stored
+
+
+@pytest.mark.asyncio
+async def test_audit_store_coordinates_multiple_gateway_instances(tmp_path) -> None:
+    path = tmp_path / "receipts.jsonl"
+    first = JsonlAuditStore(path)
+    second = JsonlAuditStore(path)
+
+    await asyncio.gather(first.append(_receipt()), second.append(_receipt()))
+
+    assert await first.verify() == 2

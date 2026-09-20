@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: madva-policy-registry
+  namespace: madva-system
+data:
+  policies.json: |
+    {"policies": []}

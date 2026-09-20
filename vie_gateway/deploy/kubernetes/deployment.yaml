@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: madva-vie-gateway
+  namespace: madva-system
+  labels:
+    app.kubernetes.io/name: madva-vie-gateway
+    app.kubernetes.io/part-of: madva
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: madva-vie-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: madva-vie-gateway
+        app.kubernetes.io/part-of: madva
+    spec:
+      serviceAccountName: madva-vie-gateway
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: madva-vie-gateway
+      containers:
+        - name: gateway
+          image: registry.example.com/madva/vie-gateway@sha256:REPLACE_WITH_GATEWAY_IMAGE_DIGEST
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: madva-gateway-config
+          env:
+            - name: MADVA_PRODUCTION
+              value: "true"
+            - name: MADVA_REQUIRE_TENANT_BINDING
+              value: "true"
+            - name: MADVA_REQUIRE_APPROVED_POLICY
+              value: "true"
+            - name: MADVA_OIDC_JWKS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: madva-gateway-secrets
+                  key: MADVA_OIDC_JWKS_URL
+            - name: MADVA_OIDC_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: madva-gateway-secrets
+                  key: MADVA_OIDC_ISSUER
+            - name: MADVA_INTENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: madva-gateway-secrets
+                  key: MADVA_INTENT_SECRET
+            - name: MADVA_AUDIT_LOG_PATH
+              value: /var/lib/madva/audit/receipts.jsonl
+            - name: MADVA_POLICY_REGISTRY_PATH
+              value: /etc/madva/policies/policies.json
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: audit
+              mountPath: /var/lib/madva/audit
+            - name: policy-registry
+              mountPath: /etc/madva/policies
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: audit
+          persistentVolumeClaim:
+            claimName: madva-audit
+        - name: policy-registry
+          configMap:
+            name: madva-policy-registry
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi

@@ -4,8 +4,9 @@ import asyncio
 import hashlib
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Iterator, Protocol, cast
 
 from .contracts import AuditReceipt
 
@@ -21,7 +22,11 @@ class AuditStore(Protocol):
 
 
 class JsonlAuditStore:
-    """Append-only, locally durable audit storage with a SHA-256 hash chain."""
+    """Append-only, durable audit storage with a SHA-256 hash chain.
+
+    The sidecar lock coordinates writers from multiple gateway processes when
+    the path is backed by a locking-capable shared filesystem.
+    """
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -74,23 +79,52 @@ class JsonlAuditStore:
             raise AuditChainError("audit_store_unreadable") from exc
         return self._verify_lines(lines)
 
+    @contextmanager
+    def _exclusive_lock(self) -> Iterator[None]:
+        lock_path = self.path.with_name(f"{self.path.name}.lock")
+        with lock_path.open("a+", encoding="ascii") as handle:
+            if os.name == "nt":
+                import msvcrt
+
+                handle.seek(0)
+                handle.write("0")
+                handle.flush()
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                try:
+                    yield
+                finally:
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl as fcntl_module
+
+                fcntl = cast(Any, fcntl_module)
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
     def _append_sync(self, receipt: AuditReceipt) -> str:
-        sequence, previous_hash = self._read_verified()
-        receipt_data = receipt.model_dump(mode="json")
-        next_sequence = sequence + 1
-        record_hash = self._record_hash(next_sequence, previous_hash, receipt_data)
-        record = {
-            "sequence": next_sequence,
-            "previous_hash": previous_hash,
-            "receipt": receipt_data,
-            "record_hash": record_hash,
-        }
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8", newline="\n") as handle:
-                handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
-                handle.flush()
-                os.fsync(handle.fileno())
+            with self._exclusive_lock():
+                sequence, previous_hash = self._read_verified()
+                receipt_data = receipt.model_dump(mode="json")
+                next_sequence = sequence + 1
+                record_hash = self._record_hash(next_sequence, previous_hash, receipt_data)
+                record = {
+                    "sequence": next_sequence,
+                    "previous_hash": previous_hash,
+                    "receipt": receipt_data,
+                    "record_hash": record_hash,
+                }
+                with self.path.open("a", encoding="utf-8", newline="\n") as handle:
+                    handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
         except OSError as exc:
             raise AuditChainError("audit_store_write_failed") from exc
         return record_hash
@@ -101,4 +135,10 @@ class JsonlAuditStore:
 
     async def verify(self) -> int:
         async with self._lock:
-            return await asyncio.to_thread(lambda: self._read_verified()[0])
+            def verify_sync() -> int:
+                if not self.path.exists():
+                    return 0
+                with self._exclusive_lock():
+                    return self._read_verified()[0]
+
+            return await asyncio.to_thread(verify_sync)

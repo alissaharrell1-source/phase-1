@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: madva-vie-gateway
+  namespace: madva-system
+  labels:
+    app.kubernetes.io/name: madva-vie-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: madva-vie-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

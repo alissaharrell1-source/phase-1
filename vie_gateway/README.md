@@ -41,6 +41,8 @@ Policy revisions are bound to an Intent Contract with `policy_id` and `policy_ve
 
 `Dockerfile` builds the gateway as a non-root user. `compose.yaml` supplies a hardened local deployment profile; provide secrets and endpoint values through the environment or an external secret manager, never by committing them to the file.
 
+`deploy/kubernetes` supplies a three-replica high-availability deployment with rolling updates, readiness/liveness probes, topology spreading, a PodDisruptionBudget, non-root execution, and a read-only root filesystem. Its RWX audit volume must support reliable advisory file locking and fsync; the audit writer coordinates concurrent replicas through a sidecar lock file. Follow `deploy/kubernetes/README.md` before applying it.
+
 Copy `.env.example` to the deployment environment and replace every placeholder with values from the selected identity provider, image registry, secret manager, and OTLP collector. Do not commit the resulting `.env` file.
 
 `.github/workflows/ci.yml` runs tests, type checking, Compose validation, and the container build on every push and pull request.

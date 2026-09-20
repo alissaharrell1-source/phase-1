@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: madva-audit
+  namespace: madva-system
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  # Select an RWX storage class that provides reliable POSIX locking and fsync.
+  # The gateway's hash-chain writer is not compatible with an object store mount
+  # or a shared filesystem that does not honor advisory file locks.

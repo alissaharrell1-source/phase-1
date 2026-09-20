@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: madva-gateway-config
+  namespace: madva-system
+data:
+  MADVA_OIDC_AUDIENCE: vie-gateway
+  MADVA_MCP_UPSTREAM_URL: http://mcp-tool-server.madva-system.svc.cluster.local:9000/mcp
+  MADVA_MCP_UPSTREAM_ALLOWED_HOSTS: mcp-tool-server.madva-system.svc.cluster.local
+  MADVA_MCP_UPSTREAM_LIFECYCLE: stateless
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4318
