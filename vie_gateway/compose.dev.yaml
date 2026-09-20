@@ -8,7 +8,12 @@ services:
       MADVA_TOKEN_SECRET: local-development-only-change-me
       MADVA_TOKEN_ISSUER: madva
       MADVA_TOKEN_AUDIENCE: vie-gateway
+      MADVA_MCP_UPSTREAM_URL: http://mcp-upstream:9000/mcp
+      MADVA_MCP_UPSTREAM_TOKEN: local-upstream-token
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      mcp-upstream:
+        condition: service_started
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
@@ -18,6 +23,22 @@ services:
       - no-new-privileges:true
     pids_limit: 128
     mem_limit: 512m
+
+  mcp-upstream:
+    build: ./examples/mcp-upstream
+    environment:
+      MCP_UPSTREAM_TOKEN: local-upstream-token
+    expose:
+      - "9000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 32
+    mem_limit: 128m
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.3

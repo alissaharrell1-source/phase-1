@@ -4,6 +4,8 @@ import base64
 import hashlib
 import hmac
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -80,3 +82,43 @@ def test_mcp_proxy_denies_credentials_without_vault_provider(monkeypatch) -> Non
                                headers={"Authorization": f"Bearer {_token(secret)}"})
     assert response.status_code == 200
     assert response.json()["error"]["message"] == "credential_provider_not_configured"
+
+
+def test_mcp_proxy_forwards_to_configured_upstream(monkeypatch) -> None:
+    secret = "test-secret"
+    observed: dict[str, object] = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            observed["authorization"] = self.headers.get("authorization")
+            observed.update(json.loads(self.rfile.read(int(self.headers["content-length"]))))
+            body = json.dumps({"jsonrpc": "2.0", "id": observed["id"],
+                               "result": {"upstream": True}}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        monkeypatch.setenv("MADVA_TOKEN_SECRET", secret)
+        monkeypatch.setenv("MADVA_MCP_UPSTREAM_URL", f"http://127.0.0.1:{server.server_port}/mcp")
+        monkeypatch.setenv("MADVA_MCP_UPSTREAM_TOKEN", "separate-upstream-token")
+        with TestClient(create_app()) as client:
+            response = client.post("/mcp", json=_request(),
+                                   headers={"Authorization": f"Bearer {_token(secret)}"})
+        assert response.status_code == 200
+        assert response.json()["result"]["output"] == {"upstream": True}
+        assert observed["authorization"] == "Bearer separate-upstream-token"
+        assert observed["method"] == "tools/call"
+        assert observed["params"]["name"] == "echo"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)

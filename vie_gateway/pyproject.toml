@@ -19,3 +19,4 @@ where = ["src"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
 addopts = "-p no:langsmith -p no:cacheprovider"
+markers = ["integration: requires a running gateway service"]
