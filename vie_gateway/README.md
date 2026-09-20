@@ -24,6 +24,8 @@ Set `MADVA_PRODUCTION=true` to make readiness require OIDC/JWKS configuration, s
 
 `Dockerfile` builds the gateway as a non-root user. `compose.yaml` supplies a hardened local deployment profile; provide secrets and endpoint values through the environment or an external secret manager, never by committing them to the file.
 
+Copy `.env.example` to the deployment environment and replace every placeholder with values from the selected identity provider, image registry, secret manager, and OTLP collector. Do not commit the resulting `.env` file.
+
 `.github/workflows/ci.yml` runs tests, type checking, Compose validation, and the container build on every push and pull request.
 
 Credential references are denied unless a vault-backed `CredentialProvider` is injected. Secret values are never placed in graph state or Docker command arguments.
