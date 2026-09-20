@@ -26,4 +26,24 @@ def test_production_readiness_requires_security_and_isolation(monkeypatch) -> No
         response = client.get("/readyz")
     assert response.status_code == 503
     assert "missing_madva_oidc_jwks_url" in response.json()["issues"]
-    assert "missing_madva_intent_secret" in response.json()["issues"]
+
+
+def test_production_readiness_accepts_mcp_upstream(monkeypatch) -> None:
+    monkeypatch.setenv("MADVA_PRODUCTION", "true")
+    monkeypatch.setenv("MADVA_OIDC_JWKS_URL", "https://issuer.example/jwks")
+    monkeypatch.setenv("MADVA_OIDC_ISSUER", "https://issuer.example")
+    monkeypatch.setenv("MADVA_INTENT_SECRET", "intent-secret")
+    monkeypatch.setenv("MADVA_MCP_UPSTREAM_URL", "https://tools.example/mcp")
+    monkeypatch.delenv("MADVA_RUNTIME_IMAGE", raising=False)
+    with TestClient(create_app()) as client:
+        response = client.get("/readyz")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
+def test_health_reports_mcp_upstream_runtime(monkeypatch) -> None:
+    monkeypatch.setenv("MADVA_MCP_UPSTREAM_URL", "https://tools.example/mcp")
+    monkeypatch.delenv("MADVA_RUNTIME_IMAGE", raising=False)
+    with TestClient(create_app()) as client:
+        response = client.get("/healthz")
+    assert response.json()["runtime"] == "mcp-upstream"

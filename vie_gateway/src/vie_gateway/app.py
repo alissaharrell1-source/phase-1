@@ -62,9 +62,10 @@ def create_app() -> FastAPI:
                 "MADVA_OIDC_JWKS_URL": os.environ.get("MADVA_OIDC_JWKS_URL"),
                 "MADVA_OIDC_ISSUER": os.environ.get("MADVA_OIDC_ISSUER"),
                 "MADVA_INTENT_SECRET": os.environ.get("MADVA_INTENT_SECRET"),
-                "MADVA_RUNTIME_IMAGE": runtime_image,
             }
             issues.extend(f"missing_{name.lower()}" for name, value in required.items() if not value)
+            if not runtime_image and not upstream_url:
+                issues.append("missing_execution_backend")
         if issues:
             return JSONResponse(status_code=503, content={"status": "not_ready", "issues": issues})
         return {"status": "ready"}
