@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from vie_gateway.contracts import IntentContract, TokenClaims
 from vie_gateway.security import AuthorizationError, IntentSigner, JITAuthorizer, OIDCTokenValidator
-from vie_gateway.runtime import DockerConfig, DockerRunner
+from vie_gateway.runtime import DockerConfig, DockerRunner, RuntimeErrorBoundary
 from vie_gateway.telemetry import AuditTracer
 from vie_gateway.contracts import ExecutionResult, Permit
 from vie_gateway.verification import Verifier
@@ -159,13 +159,33 @@ async def test_mcp_upstream_runner_forwards_standard_tool_call() -> None:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     arguments = {"city": "Boston"}
     result = await MCPUpstreamRunner(
-        MCPUpstreamConfig("https://tools.example/mcp", bearer_token="upstream-token"), client
+        MCPUpstreamConfig("https://tools.example/mcp", bearer_token="upstream-token",
+                          allowed_hosts=frozenset({"tools.example"})), client
     ).run(permit, arguments)
     await client.aclose()
     assert observed["method"] == "tools/call"
     assert observed["params"] == {"name": "weather", "arguments": {"city": "Boston"}}
     assert result.output == {"temperature": 72}
     assert arguments == {}
+
+
+def test_mcp_upstream_config_rejects_url_credentials_and_query() -> None:
+    with pytest.raises(ValueError, match="credentials_forbidden"):
+        MCPUpstreamConfig("https://user:password@tools.example/mcp")
+    with pytest.raises(ValueError, match="query_forbidden"):
+        MCPUpstreamConfig("https://tools.example/mcp?token=secret")
+
+
+@pytest.mark.asyncio
+async def test_mcp_upstream_runner_enforces_host_allowlist() -> None:
+    permit = Permit(permit_id=uuid4(), agent_id="agent-1", requester_id="requester-1",
+                    intent_scope="approved", tool="weather", operation="lookup", contract_id=uuid4(),
+                    expires_at=datetime.now(UTC) + timedelta(minutes=1))
+    runner = MCPUpstreamRunner(MCPUpstreamConfig(
+        "https://untrusted.example/mcp", allowed_hosts=frozenset({"tools.example"})
+    ))
+    with pytest.raises(RuntimeErrorBoundary, match="host_not_allowed"):
+        await runner.run(permit, {})
 
 
 @pytest.mark.asyncio

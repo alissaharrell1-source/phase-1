@@ -30,12 +30,18 @@ def create_app() -> FastAPI:
         )
     runtime_image = os.environ.get("MADVA_RUNTIME_IMAGE")
     upstream_url = os.environ.get("MADVA_MCP_UPSTREAM_URL")
+    upstream_allowed_hosts = frozenset(
+        host.strip().lower().rstrip(".")
+        for host in os.environ.get("MADVA_MCP_UPSTREAM_ALLOWED_HOSTS", "").split(",")
+        if host.strip()
+    )
     runner: Runner
     if upstream_url:
         runner = MCPUpstreamRunner(MCPUpstreamConfig(
             url=upstream_url,
             timeout_seconds=float(os.environ.get("MADVA_MCP_UPSTREAM_TIMEOUT", "30")),
             bearer_token=os.environ.get("MADVA_MCP_UPSTREAM_TOKEN"),
+            allowed_hosts=upstream_allowed_hosts,
         ))
     else:
         runner = (DockerRunner(DockerConfig(image=runtime_image))
@@ -66,6 +72,8 @@ def create_app() -> FastAPI:
             issues.extend(f"missing_{name.lower()}" for name, value in required.items() if not value)
             if not runtime_image and not upstream_url:
                 issues.append("missing_execution_backend")
+            if upstream_url and not upstream_allowed_hosts:
+                issues.append("missing_madva_mcp_upstream_allowed_hosts")
         if issues:
             return JSONResponse(status_code=503, content={"status": "not_ready", "issues": issues})
         return {"status": "ready"}

@@ -24,7 +24,7 @@ The development Compose profile includes a small demo MCP server under `examples
 
 Set `MADVA_INTENT_SECRET` to require HMAC-signed Intent Contracts. Without it, unsigned contracts remain available for local development and tests.
 
-Set `MADVA_PRODUCTION=true` to make readiness require OIDC/JWKS configuration, signed Intent Contracts, and an immutable Docker runtime image.
+Set `MADVA_PRODUCTION=true` to make readiness require OIDC/JWKS configuration, signed Intent Contracts, and either an immutable Docker runtime image or an MCP upstream with an explicit host allowlist.
 
 `Dockerfile` builds the gateway as a non-root user. `compose.yaml` supplies a hardened local deployment profile; provide secrets and endpoint values through the environment or an external secret manager, never by committing them to the file.
 

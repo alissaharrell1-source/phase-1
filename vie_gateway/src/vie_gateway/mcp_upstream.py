@@ -17,11 +17,16 @@ class MCPUpstreamConfig:
     url: str
     timeout_seconds: float = 30.0
     bearer_token: str | None = None
+    allowed_hosts: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         parsed = urlsplit(self.url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("mcp_upstream_url_must_be_http")
+        if parsed.username or parsed.password:
+            raise ValueError("mcp_upstream_url_credentials_forbidden")
+        if parsed.query or parsed.fragment:
+            raise ValueError("mcp_upstream_url_query_forbidden")
 
 
 class MCPUpstreamRunner:
@@ -36,6 +41,9 @@ class MCPUpstreamRunner:
                   credential_leases: list[CredentialLease] | None = None) -> ExecutionResult:
         if credential_leases:
             raise RuntimeErrorBoundary("upstream_credentials_unsupported")
+        hostname = (urlsplit(self.config.url).hostname or "").lower().rstrip(".")
+        if self.config.allowed_hosts and hostname not in self.config.allowed_hosts:
+            raise RuntimeErrorBoundary("mcp_upstream_host_not_allowed")
 
         request_id = str(uuid4())
         payload = {
