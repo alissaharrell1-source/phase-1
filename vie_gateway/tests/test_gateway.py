@@ -214,6 +214,44 @@ async def test_mcp_upstream_runner_rejects_rpc_error() -> None:
         await MCPUpstreamRunner(MCPUpstreamConfig("https://tools.example/mcp"), client).run(permit, {})
     await client.aclose()
 
+
+@pytest.mark.asyncio
+async def test_mcp_upstream_runner_supports_legacy_session_handshake() -> None:
+    import httpx
+    import json
+
+    permit = Permit(permit_id=uuid4(), agent_id="agent-1", requester_id="requester-1",
+                    intent_scope="approved", tool="weather", operation="lookup", contract_id=uuid4(),
+                    expires_at=datetime.now(UTC) + timedelta(minutes=1))
+    methods: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        methods.append(body["method"])
+        if body["method"] == "initialize":
+            return httpx.Response(
+                200,
+                headers={"Mcp-Session-Id": "legacy-session-1"},
+                json={"jsonrpc": "2.0", "id": body["id"], "result": {"capabilities": {}}},
+            )
+        if body["method"] == "notifications/initialized":
+            assert request.headers["mcp-session-id"] == "legacy-session-1"
+            return httpx.Response(202)
+        assert request.headers["mcp-session-id"] == "legacy-session-1"
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"],
+                                         "result": {"legacy": True}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    arguments = {"city": "Boston"}
+    result = await MCPUpstreamRunner(
+        MCPUpstreamConfig("https://tools.example/mcp", protocol_version="2025-11-25",
+                          lifecycle="legacy", allowed_hosts=frozenset({"tools.example"})), client
+    ).run(permit, arguments)
+    await client.aclose()
+    assert methods == ["initialize", "notifications/initialized", "tools/call"]
+    assert result.output == {"legacy": True}
+    assert "mcp-lifecycle:legacy" in result.evidence
+
 @pytest.mark.asyncio
 async def test_oidc_validator_verifies_rsa_jwks_token() -> None:
     import jwt

@@ -22,6 +22,8 @@ Set `MADVA_MCP_UPSTREAM_URL` to route approved calls to an MCP JSON-RPC server i
 
 Upstream calls default to the stateless MCP protocol version `2026-07-28`, sending protocol-version, method, tool-name, and gateway client identity metadata. Override this with `MADVA_MCP_UPSTREAM_PROTOCOL_VERSION` for a compatible upstream deployment.
 
+For older handshake-based MCP servers, set `MADVA_MCP_UPSTREAM_LIFECYCLE=legacy`; the runner will perform `initialize`, preserve `Mcp-Session-Id`, send `notifications/initialized`, and then issue the approved tool call.
+
 The development Compose profile includes a small demo MCP server under `examples/mcp-upstream` and routes the gateway to it automatically. It uses demo credentials only and must not be exposed publicly.
 
 Set `MADVA_INTENT_SECRET` to require HMAC-signed Intent Contracts. Without it, unsigned contracts remain available for local development and tests.

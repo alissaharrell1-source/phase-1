@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from uuid import UUID, uuid4
+from typing import Literal, cast
 from fastapi import FastAPI, Header
 from fastapi.responses import JSONResponse
 from .contracts import IntentContract, MCPToolCall
@@ -35,6 +36,10 @@ def create_app() -> FastAPI:
         for host in os.environ.get("MADVA_MCP_UPSTREAM_ALLOWED_HOSTS", "").split(",")
         if host.strip()
     )
+    lifecycle_value = os.environ.get("MADVA_MCP_UPSTREAM_LIFECYCLE", "stateless")
+    if lifecycle_value not in {"stateless", "legacy"}:
+        raise ValueError("mcp_upstream_lifecycle_invalid")
+    upstream_lifecycle = cast(Literal["stateless", "legacy"], lifecycle_value)
     runner: Runner
     if upstream_url:
         runner = MCPUpstreamRunner(MCPUpstreamConfig(
@@ -43,6 +48,7 @@ def create_app() -> FastAPI:
             bearer_token=os.environ.get("MADVA_MCP_UPSTREAM_TOKEN"),
             allowed_hosts=upstream_allowed_hosts,
             protocol_version=os.environ.get("MADVA_MCP_UPSTREAM_PROTOCOL_VERSION", "2026-07-28"),
+            lifecycle=upstream_lifecycle,
         ))
     else:
         runner = (DockerRunner(DockerConfig(image=runtime_image))

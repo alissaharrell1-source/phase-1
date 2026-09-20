@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -21,6 +21,7 @@ class MCPUpstreamConfig:
     protocol_version: str = "2026-07-28"
     client_name: str = "madva-vie-gateway"
     client_version: str = "0.1.0"
+    lifecycle: Literal["stateless", "legacy"] = "stateless"
 
     def __post_init__(self) -> None:
         parsed = urlsplit(self.url)
@@ -30,6 +31,8 @@ class MCPUpstreamConfig:
             raise ValueError("mcp_upstream_url_credentials_forbidden")
         if parsed.query or parsed.fragment:
             raise ValueError("mcp_upstream_url_query_forbidden")
+        if self.lifecycle not in {"stateless", "legacy"}:
+            raise ValueError("mcp_upstream_lifecycle_invalid")
 
 
 class MCPUpstreamRunner:
@@ -48,48 +51,56 @@ class MCPUpstreamRunner:
         if self.config.allowed_hosts and hostname not in self.config.allowed_hosts:
             raise RuntimeErrorBoundary("mcp_upstream_host_not_allowed")
 
-        request_id = str(uuid4())
-        payload = {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "method": "tools/call",
-            "params": {
-                "name": permit.tool,
-                "arguments": arguments,
-                "_meta": {
-                    "io.modelcontextprotocol/clientInfo": {
-                        "name": self.config.client_name,
-                        "version": self.config.client_version,
-                    },
-                },
-            },
-        }
-        headers = {
-            "content-type": "application/json",
-            "MCP-Protocol-Version": self.config.protocol_version,
-            "Mcp-Method": "tools/call",
-            "Mcp-Name": permit.tool,
-        }
-        if self.config.bearer_token:
-            headers["authorization"] = f"Bearer {self.config.bearer_token}"
-
         client = self._client
         owns_client = client is None
         if client is None:
             client = httpx.AsyncClient(timeout=self.config.timeout_seconds)
         try:
-            try:
-                response = await client.post(self.config.url, json=payload, headers=headers)
-                response.raise_for_status()
-                body = response.json()
-            except (httpx.HTTPError, ValueError) as exc:
-                raise RuntimeErrorBoundary("mcp_upstream_unavailable") from exc
+            session_id: str | None = None
+            if self.config.lifecycle == "legacy":
+                initialize_id = str(uuid4())
+                initialize_body = await self._post_json(
+                    client,
+                    {"jsonrpc": "2.0", "id": initialize_id, "method": "initialize",
+                     "params": {"protocolVersion": self.config.protocol_version,
+                                 "capabilities": {},
+                                 "clientInfo": {"name": self.config.client_name,
+                                                 "version": self.config.client_version}}},
+                    self._headers("initialize"),
+                )
+                if initialize_body.get("id") != initialize_id or "result" not in initialize_body:
+                    raise RuntimeErrorBoundary("mcp_upstream_initialize_failed")
+                session_id = initialize_body.get("_session_id")
+                notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+                await self._post_notification(client, notification, self._headers("notifications/initialized", session_id))
+
+            request_id = str(uuid4())
+            payload = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "tools/call",
+                "params": {
+                    "name": permit.tool,
+                    "arguments": arguments,
+                    "_meta": {
+                        "io.modelcontextprotocol/clientInfo": {
+                            "name": self.config.client_name,
+                            "version": self.config.client_version,
+                        },
+                    },
+                },
+            }
+            body = await self._post_json(client, payload, self._headers("tools/call", session_id, permit.tool))
+        except RuntimeErrorBoundary:
+            raise
+        except (httpx.HTTPError, ValueError) as exc:
+            raise RuntimeErrorBoundary("mcp_upstream_unavailable") from exc
         finally:
             arguments.clear()
             if owns_client:
                 await client.aclose()
 
-        if not isinstance(body, dict) or body.get("jsonrpc") != "2.0" or body.get("id") != request_id:
+        if body.get("id") != request_id:
             raise RuntimeErrorBoundary("mcp_upstream_invalid_response")
         if body.get("error") is not None:
             error = body["error"]
@@ -102,6 +113,44 @@ class MCPUpstreamRunner:
             status="completed",
             output=body["result"],
             session_id=uuid4(),
-            evidence=[f"mcp-upstream:{urlsplit(self.config.url).netloc}"],
+            evidence=[f"mcp-upstream:{urlsplit(self.config.url).netloc}",
+                      f"mcp-lifecycle:{self.config.lifecycle}"],
             cleanup_status="verified",
         )
+
+    def _headers(self, method: str, session_id: str | None = None,
+                 tool: str | None = None) -> dict[str, str]:
+        headers = {"content-type": "application/json",
+                   "MCP-Protocol-Version": self.config.protocol_version,
+                   "Mcp-Method": method}
+        if tool:
+            headers["Mcp-Name"] = tool
+        if session_id:
+            headers["Mcp-Session-Id"] = session_id
+        if self.config.bearer_token:
+            headers["authorization"] = f"Bearer {self.config.bearer_token}"
+        return headers
+
+    async def _post_json(self, client: httpx.AsyncClient, payload: dict[str, Any],
+                         headers: dict[str, str]) -> dict[str, Any]:
+        response = await client.post(self.config.url, json=payload, headers=headers)
+        response.raise_for_status()
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise RuntimeErrorBoundary("mcp_upstream_invalid_response") from exc
+        if not isinstance(body, dict) or body.get("jsonrpc") != "2.0":
+            raise RuntimeErrorBoundary("mcp_upstream_invalid_response")
+        if body.get("error") is not None:
+            error = body["error"]
+            message = str(error.get("message", "upstream_tool_error"))[:200] if isinstance(error, dict) else "upstream_tool_error"
+            raise RuntimeErrorBoundary(f"mcp_upstream_error:{message}")
+        session_id = response.headers.get("mcp-session-id")
+        if session_id:
+            body["_session_id"] = session_id
+        return body
+
+    async def _post_notification(self, client: httpx.AsyncClient, payload: dict[str, Any],
+                                 headers: dict[str, str]) -> None:
+        response = await client.post(self.config.url, json=payload, headers=headers)
+        response.raise_for_status()
