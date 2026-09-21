@@ -38,3 +38,16 @@ Phase 1 is a functional gateway MVP, not a complete enterprise platform. The fol
 - Independent security assessment and repeatable attack benchmarks.
 
 This document is the handoff point for Phase 2 implementation.
+
+## Phase 2 progress after the baseline
+
+The following hardening items have since been implemented in this repository:
+
+- durable tamper-evident audit storage with coordinated multi-instance writers;
+- Kubernetes high-availability deployment profile;
+- tenant-bound authorization and versioned policy approval;
+- OIDC, Vault, and OTLP/SIEM integration hardening;
+- independent security regression tests and repeatable benchmark tooling;
+- contributor, security-reporting, operations, and open-source strategy documentation.
+
+Remaining work includes independent external assessment, production-specific SIEM/storage adapters and dashboards, failure-injection testing, and final license/governance decisions.

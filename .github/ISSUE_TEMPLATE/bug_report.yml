@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible defect without disclosing sensitive data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include credentials, private keys, customer data, or exploitable vulnerability details. Use the private process in SECURITY.md for security reports."
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or version
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide redacted commands, fixtures, and logs.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python, Docker/Kubernetes mode, and relevant configuration flags.
+    validations:
+      required: true
