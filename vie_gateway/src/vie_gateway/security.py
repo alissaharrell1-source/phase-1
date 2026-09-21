@@ -83,6 +83,8 @@ class TokenValidator:
             raise AuthorizationError("expired_token")
         try:
             return TokenClaims.model_validate(_normalize_identity_claims(payload))
+        except AuthorizationError:
+            raise
         except Exception as exc:
             raise AuthorizationError("invalid_claims") from exc
 
@@ -160,5 +162,7 @@ class OIDCTokenValidator:
             payload = jwt.decode(token, key=key, algorithms=list(self.allowed_algorithms),
                                  issuer=self.issuer, audience=self.audience, options={"require": ["exp", "iss", "aud"]})
             return TokenClaims.model_validate(_normalize_identity_claims(payload))
+        except AuthorizationError:
+            raise
         except (jwt.PyJWTError, ValueError) as exc:
             raise AuthorizationError("oidc_validation_failed") from exc
