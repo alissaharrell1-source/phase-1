@@ -42,6 +42,8 @@ The gateway is a LangGraph state machine with four explicit stages:
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for trust boundaries and extension points. The detailed implementation and configuration reference is in [vie_gateway/README.md](vie_gateway/README.md).
 
+For assessment preparation, see the [threat model](docs/THREAT_MODEL.md), [security assessment plan](docs/SECURITY_ASSESSMENT_PLAN.md), and [control/evidence matrix](docs/CONTROL_EVIDENCE_MATRIX.md).
+
 ## Project map
 
 - `vie_gateway/src/vie_gateway/` — typed gateway implementation.
