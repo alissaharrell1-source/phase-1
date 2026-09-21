@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from langgraph.graph import END, StateGraph
 
-from .audit_store import AuditStore, JsonlAuditStore
+from .audit_store import AuditChainError, AuditStore, JsonlAuditStore
 from .contracts import AuditReceipt, ExecutionResult, IntentContract, MCPToolCall, Permit, TokenClaims
 from .credentials import CredentialProvider
 from .runtime import EphemeralRunner, Runner, RuntimeErrorBoundary
@@ -119,7 +119,10 @@ def build_vie_graph(dependencies: GraphDependencies):
                 span.set_attribute("verification.execution_status", receipt.execution_status)
                 span.set_attribute("verification.cleanup_status", receipt.cleanup_status)
         if dependencies.audit_store is not None:
-            await dependencies.audit_store.append(receipt)
+            try:
+                await dependencies.audit_store.append(receipt)
+            except AuditChainError:
+                return {"stage": "failed", "error": "audit_persistence_failed"}
         return {"receipt": receipt, "stage": "verification_complete"}
 
     def route(state: VIEState) -> str:
