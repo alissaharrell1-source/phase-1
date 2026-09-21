@@ -24,3 +24,4 @@ Maintainers will acknowledge receipt when practical, triage severity, coordinate
 - The audit filesystem must provide reliable locking and fsync when shared by replicas.
 - Demo Compose credentials and local Keycloak/Vault services are development-only.
 - OTLP collectors, Vault, identity providers, registries, and upstream MCP servers remain part of the deployment trust boundary.
+- CI runs dependency, static-analysis, and container-image scans; passing scans reduce known-risk exposure but do not replace independent testing or image provenance review.

@@ -1,0 +1,57 @@
+name: Security Scans
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-and-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install application and audit tools
+        run: |
+          python -m pip install -e "./vie_gateway[dev]"
+          python -m pip install pip-audit bandit[toml]
+      - name: Audit Python dependencies
+        run: pip-audit --format=json --output=pip-audit.json
+      - name: Run Bandit static analysis
+        run: bandit -r vie_gateway/src -f json -o bandit.json
+      - name: Upload security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-static-security-${{ github.sha }}
+          path: |
+            pip-audit.json
+            bandit.json
+          if-no-files-found: error
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build gateway image
+        run: docker build --tag madva-vie-gateway:security vie_gateway
+      - name: Scan gateway image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: madva-vie-gateway:security
+          format: json
+          output: trivy.json
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Upload container security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-security-${{ github.sha }}
+          path: trivy.json
+          if-no-files-found: error

@@ -34,6 +34,7 @@ Obtain an external review of the VIE gateway's security design and implementatio
 - Commit under review and release image digests.
 - `docs/THREAT_MODEL.md`, `docs/ARCHITECTURE.md`, and `docs/OPERATIONS.md`.
 - CI JUnit test artifacts, security regression output, mypy output, Compose/Kustomize validation, and benchmark methodology.
+- CI dependency, static-analysis, and container-scan artifacts from `.github/workflows/security.yml`.
 - Redacted policy registry and deployment configuration.
 - Audit-chain verification output from a disposable test fixture.
 
