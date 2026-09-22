@@ -4,7 +4,9 @@ MADVA Phase 1 is an open security-engineering prototype for a Verified Intent Ex
 
 ## Current status
 
-The functional Phase 1 MVP is complete. Phase 2 hardening in this repository includes:
+The Phase 1 implementation and local automated acceptance baseline are complete. The current configured suite is 86 passed with 1 warning, mypy passes, and the locked development dependencies resolve successfully. External validation in the target deployment is still required before production readiness can be claimed; see the [Phase 1 closure checklist](docs/PHASE_1_CLOSURE.md).
+
+The repository also includes the following hardening:
 
 - tenant-bound authorization and versioned policy approval;
 - append-only hash-chained audit storage with multi-process locking;
@@ -42,7 +44,7 @@ The gateway is a LangGraph state machine with four explicit stages:
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for trust boundaries and extension points. The detailed implementation and configuration reference is in [vie_gateway/README.md](vie_gateway/README.md).
 
-For assessment preparation, see the [threat model](docs/THREAT_MODEL.md), [security assessment plan](docs/SECURITY_ASSESSMENT_PLAN.md), and [control/evidence matrix](docs/CONTROL_EVIDENCE_MATRIX.md).
+For assessment preparation, see the [threat model](docs/THREAT_MODEL.md), [security assessment plan](docs/SECURITY_ASSESSMENT_PLAN.md), [Phase 1 closure checklist](docs/PHASE_1_CLOSURE.md), and [control/evidence matrix](docs/CONTROL_EVIDENCE_MATRIX.md).
 
 ## Project map
 

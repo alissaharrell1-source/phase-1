@@ -1,8 +1,8 @@
-# MADVA Phase 1 Acceptance Baseline
+# MADVA Phase 1 Acceptance and Closure Handoff
 
-Status: **MVP acceptance complete**  
-Baseline commit: `88065f9`  
-CI: [VIE Gateway CI run 18](https://github.com/alissaharrell1-source/phase-1/actions/runs/35538466523)
+Status: **Implementation and local automated acceptance complete; external validation pending**
+Current evidence commit: `173b336`
+Repository: [alissaharrell1-source/phase-1](https://github.com/alissaharrell1-source/phase-1)
 
 ## Accepted Phase 1 capabilities
 
@@ -16,38 +16,25 @@ CI: [VIE Gateway CI run 18](https://github.com/alissaharrell1-source/phase-1/act
 - MCP upstream routing with separate upstream credentials, host allowlisting, stateless and legacy lifecycle support, and sanitized OpenTelemetry spans.
 - Post-execution output-schema and DLP verification with audit receipts.
 - Verification spans containing safe outcome metadata without tool arguments, results, or bearer tokens.
+- Durable tamper-evident audit storage with fail-closed verification and backup checks.
+- Tenant-bound authorization and versioned policy approval invariants.
+- Kubernetes high-availability deployment profile with security-context and probe checks.
+- Hardened OIDC/JWKS, Vault, OTLP, DLP, reproducibility, and supply-chain release controls.
 
 ## Validation evidence
 
-- Local enabled suite: **34 passed, 0 skipped**.
-- Docker credential-isolation integration: passed.
-- Docker MCP upstream integration: passed.
-- Mypy type checking: passed.
-- Docker Compose gateway stack: healthy.
-- GitHub Actions run 18: passed.
+- Full local suite: **86 passed, 1 warning** with the Docker integration environment configured.
+- Docker credential-isolation and MCP upstream integrations: passed as part of the enabled suite.
+- Mypy type checking: passed with no issues in 15 source files.
+- Development lock resolution: passed with `requirements-dev.lock`.
+- Release-review schema validation: passed for the pending release-review record.
+- Docker Compose gateway stack: healthy when the Docker engine is available.
+- GitHub Actions workflow: configured for CI, security, benchmark, and release-review gates; the latest run must be checked from the repository Actions page rather than inferred locally.
 
-## Explicit Phase 1 boundaries
+## Closure boundary
 
-Phase 1 is a functional gateway MVP, not a complete enterprise platform. The following remain Phase 2 work:
+The implementation work represented by the Phase 1 control set is complete in the repository, with local evidence for C-01 through C-12 recorded in the [control/evidence matrix](../docs/CONTROL_EVIDENCE_MATRIX.md). This closes the engineering baseline; it does not represent independent certification or production readiness.
 
-- Durable tamper-evident audit storage.
-- High-availability deployment and multi-instance coordination.
-- Multi-tenant isolation and tenant-aware policy administration.
-- Policy versioning, approvals, and human-in-the-loop workflows.
-- Production SIEM connectors and operational dashboards.
-- Independent security assessment and repeatable attack benchmarks.
+The remaining work is validation in the target deployment and release process. It is tracked explicitly in [PHASE_1_CLOSURE.md](../docs/PHASE_1_CLOSURE.md) and includes identity-provider, Vault, shared-storage, telemetry-collector, cluster disruption/load, independent-environment, external DSPM, runtime-escape, and approved-release-review checks.
 
-This document is the handoff point for Phase 2 implementation.
-
-## Phase 2 progress after the baseline
-
-The following hardening items have since been implemented in this repository:
-
-- durable tamper-evident audit storage with coordinated multi-instance writers;
-- Kubernetes high-availability deployment profile;
-- tenant-bound authorization and versioned policy approval;
-- OIDC, Vault, and OTLP/SIEM integration hardening;
-- independent security regression tests and repeatable benchmark tooling;
-- contributor, security-reporting, operations, and open-source strategy documentation.
-
-Remaining work includes independent external assessment, production-specific SIEM/storage adapters and dashboards, failure-injection testing, and final license/governance decisions.
+No implementation area needs to be reopened unless one of those external gates finds a defect or the target deployment differs from the documented assumptions.
