@@ -2,11 +2,12 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from vie_gateway.contracts import IntentContract, MCPToolCall, TokenClaims
 from vie_gateway.credentials import DenyAllCredentialProvider
 from vie_gateway.graph import GraphDependencies, build_vie_graph
-from vie_gateway.policy import PolicyApprovalError, PolicyRegistry
+from vie_gateway.policy import PolicyApprovalError, PolicyRecord, PolicyRegistry
 from vie_gateway.runtime import EphemeralRunner
 from vie_gateway.security import IntentSigner, JITAuthorizer
 from vie_gateway.telemetry import AuditTracer
@@ -33,6 +34,19 @@ def test_policy_registry_requires_approval_and_supports_lifecycle() -> None:
     assert revoked.status == "revoked"
     with pytest.raises(PolicyApprovalError, match="policy_revision_not_approved"):
         registry.validate_intent(intent)
+
+
+def test_policy_registry_requires_a_named_approver() -> None:
+    registry = PolicyRegistry(require_approval=True)
+    registry.submit("vie-default", "2026.1", {"tools": ["echo"]})
+    with pytest.raises(PolicyApprovalError, match="policy_approver_required"):
+        registry.approve("vie-default", "2026.1", "   ")
+
+
+def test_policy_record_rejects_approved_revision_without_metadata() -> None:
+    with pytest.raises(ValidationError, match="approved_policy_requires_metadata"):
+        PolicyRecord(policy_id="vie-default", policy_version="2026.1", status="approved",
+                     content_sha256="0" * 64)
 
 
 @pytest.mark.asyncio
@@ -67,4 +81,3 @@ async def test_approved_policy_revision_is_propagated_to_receipt() -> None:
 
     assert state["receipt"].policy_id == "vie-default"
     assert state["receipt"].policy_version == "2026.1"
-

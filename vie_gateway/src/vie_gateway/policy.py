@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .contracts import IntentContract
 
@@ -26,6 +26,14 @@ class PolicyRecord(BaseModel):
     approved_by: str | None = None
     approved_at: datetime | None = None
     decision_reason: str | None = None
+
+    @model_validator(mode="after")
+    def validate_approval_metadata(self) -> "PolicyRecord":
+        if self.status == "approved" and (
+            self.approved_by is None or not self.approved_by.strip() or self.approved_at is None
+        ):
+            raise ValueError("approved_policy_requires_metadata")
+        return self
 
 
 class PolicyRegistry:
@@ -79,6 +87,8 @@ class PolicyRegistry:
 
     def approve(self, policy_id: str, policy_version: str, approver: str,
                 reason: str | None = None) -> PolicyRecord:
+        if not approver.strip():
+            raise PolicyApprovalError("policy_approver_required")
         record = self._get(policy_id, policy_version)
         if record.status not in {"pending", "draft"}:
             raise PolicyApprovalError("policy_revision_not_approvable")
