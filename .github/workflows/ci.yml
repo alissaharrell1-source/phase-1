@@ -8,6 +8,29 @@ permissions:
   contents: read
 
 jobs:
+  ha-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install validation dependencies
+        run: python -m pip install -r vie_gateway/requirements-dev.lock
+      - name: Validate JSON contracts
+        run: |
+          python -m json.tool security/ha-smoke-evidence.schema.json > /dev/null
+          python -m json.tool security/ha-disruption-evidence.schema.json > /dev/null
+          python -m json.tool security/deployment-validation-evidence.schema.json > /dev/null
+      - name: Validate rendered Kubernetes HA bundle
+        run: |
+          python -c "import shutil; shutil.copytree('vie_gateway/deploy/kubernetes', '/tmp/madva-kubernetes-rendered')"
+          python -c "from pathlib import Path; p=Path('/tmp/madva-kubernetes-rendered/deployment.yaml'); p.write_text(p.read_text().replace('sha256:REPLACE_WITH_GATEWAY_IMAGE_DIGEST', 'sha256:' + 'a' * 64))"
+          python security/validate_kubernetes_ha.py --path /tmp/madva-kubernetes-rendered
+      - name: Run HA evidence contract tests
+        working-directory: vie_gateway
+        run: python -m pytest -q tests/test_ha_smoke_evidence.py tests/test_ha_disruption_evidence.py tests/test_kubernetes_ha.py
+
   test:
     runs-on: ubuntu-latest
     defaults:
