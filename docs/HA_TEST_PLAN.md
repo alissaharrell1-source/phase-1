@@ -25,6 +25,8 @@ To create review evidence, provide an environment label and the exact commit, fo
 
 Record the disruption run in `security/ha-disruption-evidence.schema.json` and validate it with `python security/validate_ha_disruption_evidence.py --path ha-disruption-evidence.json`. The contract accepts only an immutable image digest, bounded cluster metadata, named disruption cases, numeric observations, and redacted finding codes. Do not add URLs, pod names, tenant identifiers, credentials, response bodies, or free-form notes.
 
+Create the initial operator template with `python security/create_ha_disruption_evidence.py --output ha-disruption-evidence.json --environment staging --commit $env:MADVA_COMMIT --image-digest sha256:<approved-digest> --kubernetes-version v1.31.4 --node-count 3 --replicas-expected 3`. The generated artifact is deliberately marked `valid: false` and `test_results_pending`; update only the bounded test fields from observed staging results, then rerun the validator. Do not mark the result valid while any test is `not_run` or `fail`.
+
 ## Acceptance criteria
 
 - At least two gateway replicas remain available during voluntary single-node disruption.

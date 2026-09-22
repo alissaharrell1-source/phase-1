@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "security"))
 from validate_ha_disruption_evidence import validate_evidence
+from create_ha_disruption_evidence import build_template
 
 
 def _evidence() -> dict[str, object]:
@@ -72,3 +73,19 @@ def test_valid_result_cannot_hide_nonpassing_test() -> None:
     assert isinstance(test, dict)
     test["status"] = "not_run"
     assert "valid_result_contains_nonpassing_test" in validate_evidence(evidence)
+
+
+def test_template_is_explicitly_pending_and_schema_safe() -> None:
+    template = build_template(
+        environment="staging",
+        commit="d" * 40,
+        image_digest="sha256:" + "e" * 64,
+        kubernetes_version="v1.31.4",
+        node_count=3,
+        replicas_expected=3,
+    )
+    result = template["result"]
+    assert isinstance(result, dict)
+    assert result["valid"] is False
+    assert result["errors"] == ["test_results_pending"]
+    assert validate_evidence(template) == []
