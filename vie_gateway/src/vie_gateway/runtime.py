@@ -72,7 +72,8 @@ class DockerRunner:
             self.config.executable, "run", "--rm", "-i",
             "--network=none", "--read-only", "--cap-drop=ALL",
             "--security-opt=no-new-privileges", "--pids-limit=64",
-            "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
+            # This is a container-internal tmpfs mount, not a host temp path.
+            "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",  # nosec B108
             "--memory", self.config.memory, "--cpus", self.config.cpus,
         ]
         if cidfile:
