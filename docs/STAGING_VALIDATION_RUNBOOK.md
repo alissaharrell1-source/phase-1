@@ -28,9 +28,21 @@ From `vie_gateway`:
 python -m pip install --no-deps -e .
 python -m vie_gateway.deployment_validation_cli --live | Tee-Object deployment-validation.json
 if ($LASTEXITCODE -ne 0) { throw "MADVA staging validation failed" }
+$result = Get-Content deployment-validation.json -Raw | ConvertFrom-Json
+[ordered]@{
+  schema_version = 1
+  environment = $env:MADVA_ENVIRONMENT
+  commit = (git rev-parse HEAD)
+  executed_at = (Get-Date).ToUniversalTime().ToString("o")
+  validator = "madva-deployment-validate"
+  result = $result
+} | ConvertTo-Json -Depth 5 | Set-Content deployment-evidence.json
+python ..\security\validate_deployment_evidence.py --path deployment-evidence.json
 ```
 
 The output is redacted JSON. Exit code `0` means the static contract and live checks passed. Exit code `2` means the release is not ready for the next gate.
+
+Before attaching evidence, wrap the redacted result in the checked-in evidence schema and validate it with `security/validate_deployment_evidence.py`. The evidence validator rejects secrets, URLs, paths, arbitrary fields, malformed commits, and inconsistent valid/error states.
 
 ## 3. Attach evidence
 

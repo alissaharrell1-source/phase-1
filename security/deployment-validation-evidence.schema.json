@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "environment", "commit", "executed_at", "validator", "result"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "environment": {"type": "string", "minLength": 1},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "executed_at": {"type": "string", "minLength": 1},
+    "validator": {"type": "string", "const": "madva-deployment-validate"},
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "errors", "checks"],
+      "properties": {
+        "valid": {"type": "boolean"},
+        "errors": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_:-]+$"}},
+        "checks": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_:-]+$"}}
+      }
+    }
+  }
+}
