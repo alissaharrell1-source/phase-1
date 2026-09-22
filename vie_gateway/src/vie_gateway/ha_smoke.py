@@ -8,6 +8,8 @@ import statistics
 import time
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
@@ -35,6 +37,30 @@ class SmokeResult:
             "requests_per_second": self.requests_per_second,
             "latency_ms": self.latency_ms,
         }
+
+    def as_evidence(self, *, environment: str, commit: str,
+                    executed_at: str | None = None) -> dict[str, object]:
+        """Return URL-free, redacted evidence suitable for release review."""
+        valid = self.failed == 0
+        return {
+            "schema_version": 1,
+            "environment": environment,
+            "commit": commit,
+            "executed_at": executed_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "validator": "madva-ha-smoke",
+            "result": {
+                "valid": valid,
+                "errors": [] if valid else ["endpoint_smoke_failed"],
+                "checks": ["endpoint_smoke", f"path:{self.path}"],
+                "smoke": self.as_dict(),
+            },
+        }
+
+
+def write_evidence(path: Path, result: SmokeResult, *, environment: str,
+                   commit: str) -> None:
+    path.write_text(json.dumps(result.as_evidence(environment=environment, commit=commit),
+                               sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _validate_url(url: str) -> None:
@@ -101,6 +127,12 @@ def main() -> int:
     parser.add_argument("--iterations", type=int, default=100)
     parser.add_argument("--concurrency", type=int, default=10)
     parser.add_argument("--timeout", type=float, default=5.0)
+    parser.add_argument("--evidence-output", type=Path,
+                        help="write URL-free JSON evidence to this path")
+    parser.add_argument("--environment", default=os.environ.get("MADVA_ENVIRONMENT"),
+                        help="deployment label for evidence output")
+    parser.add_argument("--commit", default=os.environ.get("MADVA_COMMIT"),
+                        help="40-character commit for evidence output")
     args = parser.parse_args()
     try:
         result = asyncio.run(run_smoke(args.url, path=args.path, iterations=args.iterations,
@@ -108,6 +140,11 @@ def main() -> int:
     except (ValueError, httpx.HTTPError) as exc:
         print(json.dumps({"valid": False, "error": str(exc)}, sort_keys=True))
         return 2
+    if args.evidence_output:
+        if not args.environment or not args.commit or len(args.commit) != 40:
+            print(json.dumps({"valid": False, "error": "evidence_metadata_required"}, sort_keys=True))
+            return 2
+        write_evidence(args.evidence_output, result, environment=args.environment, commit=args.commit)
     print(json.dumps(result.as_dict(), sort_keys=True))
     return 0 if result.failed == 0 else 2
 

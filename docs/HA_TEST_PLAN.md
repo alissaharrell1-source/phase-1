@@ -14,6 +14,8 @@ Run the repository benchmark for a local baseline, then use an authenticated HTT
 
 For a bounded unauthenticated service smoke before the authenticated workload, run `madva-ha-smoke --url https://staging-gateway.example --path /healthz --iterations 300 --concurrency 20` and repeat with `--path /readyz`. The command emits status counts and latency percentiles without recording response bodies. It is a health/readiness signal, not a substitute for the authenticated MCP workload below.
 
+To create review evidence, provide an environment label and the exact commit, for example `madva-ha-smoke --url https://staging-gateway.example --path /healthz --iterations 300 --concurrency 20 --environment staging --commit $env:MADVA_COMMIT --evidence-output ha-healthz-evidence.json`. Validate the artifact with `python security/validate_ha_smoke_evidence.py --path ha-healthz-evidence.json`. The artifact is URL-free and contains only bounded metrics, status counts, and the selected endpoint path.
+
 ## Disruption test
 
 1. Delete one gateway pod and confirm the Service continues serving requests while a replacement becomes Ready.

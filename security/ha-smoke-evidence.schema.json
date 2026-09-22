@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "environment", "commit", "executed_at", "validator", "result"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "environment": {"type": "string", "pattern": "^[a-zA-Z0-9._-]+$", "minLength": 1},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "executed_at": {"type": "string", "minLength": 1},
+    "validator": {"type": "string", "const": "madva-ha-smoke"},
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "errors", "checks", "smoke"],
+      "properties": {
+        "valid": {"type": "boolean"},
+        "errors": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_:-]+$"}},
+        "checks": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_:/-]+$"}},
+        "smoke": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["iterations", "concurrency", "path", "successful", "failed", "status_counts", "requests_per_second", "latency_ms"],
+          "properties": {
+            "iterations": {"type": "integer", "minimum": 1, "maximum": 10000},
+            "concurrency": {"type": "integer", "minimum": 1, "maximum": 100},
+            "path": {"enum": ["/healthz", "/readyz"]},
+            "successful": {"type": "integer", "minimum": 0},
+            "failed": {"type": "integer", "minimum": 0},
+            "status_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "patternProperties": {"^(?:[0-9]{3}|transport_error)$": {"type": "integer", "minimum": 0}}
+            },
+            "requests_per_second": {"type": "number", "minimum": 0},
+            "latency_ms": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mean", "p50", "p95", "p99"],
+              "properties": {
+                "mean": {"type": "number", "minimum": 0},
+                "p50": {"type": "number", "minimum": 0},
+                "p95": {"type": "number", "minimum": 0},
+                "p99": {"type": "number", "minimum": 0}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
