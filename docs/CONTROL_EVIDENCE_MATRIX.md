@@ -13,4 +13,4 @@
 | C-09 Telemetry redaction | bounded OTel attributes | span tests and OTLP config checks | Collector retention/access review |
 | C-10 HA operations | Kubernetes Deployment, Service, PDB, probes | Kustomize render and operations guide | Cluster disruption/load test |
 | C-11 Reproducibility | CI, security suite, benchmark | GitHub Actions artifacts and benchmark JSON | External environment replication |
-| C-12 Supply-chain hygiene | Dependency audit, Bandit, and Trivy workflow | `.github/workflows/security.yml` artifacts | Triage policy for newly disclosed vulnerabilities |
+| C-12 Supply-chain hygiene | Dependency audit, Bandit, Trivy workflow, Dependabot, and machine-readable triage policy | `.github/workflows/security.yml` artifacts, `security/scan-policy.json`, and `docs/SUPPLY_CHAIN_TRIAGE.md` | Advisory applicability and remediation review for each release |

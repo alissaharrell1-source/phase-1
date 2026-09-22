@@ -1,0 +1,27 @@
+{
+  "policy_version": 1,
+  "blocking_severities": [
+    "critical",
+    "high"
+  ],
+  "remediation_sla_days": {
+    "critical": 1,
+    "high": 7,
+    "medium": 30,
+    "low": 90
+  },
+  "unfixed_findings": "must_be_triaged",
+  "exception": {
+    "required_fields": [
+      "identifier",
+      "component",
+      "severity",
+      "reason",
+      "owner",
+      "expires_on",
+      "mitigation"
+    ],
+    "maximum_duration_days": 30,
+    "approval": "security-maintainer"
+  }
+}

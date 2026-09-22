@@ -25,3 +25,4 @@ Maintainers will acknowledge receipt when practical, triage severity, coordinate
 - Demo Compose credentials and local Keycloak/Vault services are development-only.
 - OTLP collectors, Vault, identity providers, registries, and upstream MCP servers remain part of the deployment trust boundary.
 - CI runs dependency, static-analysis, and container-image scans; passing scans reduce known-risk exposure but do not replace independent testing or image provenance review.
+- Supply-chain severity thresholds, remediation SLAs, exception requirements, and Dependabot coverage are defined in [`docs/SUPPLY_CHAIN_TRIAGE.md`](docs/SUPPLY_CHAIN_TRIAGE.md).
