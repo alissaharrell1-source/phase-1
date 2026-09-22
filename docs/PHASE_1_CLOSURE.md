@@ -13,6 +13,7 @@ At evidence commit `f4051d5`, the Phase 1 implementation and automated acceptanc
 - Docker credential and MCP upstream integrations: passed when the Docker engine and integration environment are available.
 - GitHub Actions VIE Gateway CI #66: passed across all five jobs, including MCP upstream integration.
 - GitHub Actions Security Scans #37: passed.
+- Local Keycloak external-style OIDC/JWKS and tenant-bound JIT validation: passed; see [local identity-provider validation](LOCAL_IDP_VALIDATION.md).
 - Controls C-01 through C-12: implementation and local evidence recorded in the [control/evidence matrix](CONTROL_EVIDENCE_MATRIX.md).
 
 These results demonstrate repository behavior. They are not a substitute for testing the actual identity provider, Vault, telemetry collector, shared storage, cluster, host runtime, and release artifacts selected for deployment.
