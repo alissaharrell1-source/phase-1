@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import asyncio
 import hashlib
 import hmac
 import json
@@ -144,6 +145,7 @@ class OIDCTokenValidator:
         self.allowed_algorithms = allowed_algorithms
         self.transport = transport
         self._keys: dict[str, dict[str, object]] = {}
+        self._keys_lock = asyncio.Lock()
 
     async def _load_keys(self) -> None:
         try:
@@ -172,7 +174,9 @@ class OIDCTokenValidator:
         if algorithm not in self.allowed_algorithms or not kid:
             raise AuthorizationError("unsupported_token_algorithm")
         if kid not in self._keys:
-            await self._load_keys()
+            async with self._keys_lock:
+                if kid not in self._keys:
+                    await self._load_keys()
         jwk = self._keys.get(kid)
         if jwk is None:
             raise AuthorizationError("unknown_signing_key")
