@@ -134,10 +134,17 @@ class OIDCTokenValidator:
         self._keys: dict[str, dict[str, object]] = {}
 
     async def _load_keys(self) -> None:
-        async with httpx.AsyncClient(timeout=5.0, transport=self.transport) as client:
-            response = await client.get(self.jwks_uri)
-            response.raise_for_status()
-            body = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=5.0, transport=self.transport) as client:
+                response = await client.get(self.jwks_uri)
+                response.raise_for_status()
+                body = response.json()
+        except httpx.HTTPError as exc:
+            raise AuthorizationError("oidc_provider_unavailable") from exc
+        except (TypeError, ValueError) as exc:
+            raise AuthorizationError("invalid_jwks") from exc
+        if not isinstance(body, dict):
+            raise AuthorizationError("invalid_jwks")
         keys = body.get("keys", [])
         if not isinstance(keys, list):
             raise AuthorizationError("invalid_jwks")

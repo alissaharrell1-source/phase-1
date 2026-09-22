@@ -2,7 +2,7 @@
 
 | Control | Implementation | Evidence | Remaining validation |
 | --- | --- | --- | --- |
-| C-01 Token authenticity and claims | `vie_gateway/src/vie_gateway/security.py` | `tests/security/test_regressions.py`, OIDC tests | External key-rotation and provider outage review |
+| C-01 Token authenticity and claims | `vie_gateway/src/vie_gateway/security.py` | `tests/security/test_regressions.py`, OIDC rotation/outage tests | External identity-provider key-rotation and outage review |
 | C-02 Intent integrity | `IntentSigner` and Architect stage | `tests/test_gateway.py` | Canonicalization and cross-language signing review |
 | C-03 Tenant isolation | `JITAuthorizer` and production flags | tenant tests and security regressions | Identity-provider claim mapping review |
 | C-04 Approved policy revision | `PolicyRegistry` | `tests/test_policy.py` | Human approval service and registry distribution review |

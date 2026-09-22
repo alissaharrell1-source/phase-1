@@ -509,6 +509,67 @@ async def test_oidc_validator_accepts_standard_audience_array() -> None:
     assert claims.aud == ["vie-gateway", "account"]
 
 
+@pytest.mark.asyncio
+async def test_oidc_validator_refreshes_jwks_for_rotated_signing_key() -> None:
+    import httpx
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from jwt.algorithms import RSAAlgorithm
+
+    first_private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    second_private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    first_jwk = RSAAlgorithm.to_jwk(first_private_key.public_key(), as_dict=True)
+    first_jwk["kid"] = "rotation-key-1"
+    second_jwk = RSAAlgorithm.to_jwk(second_private_key.public_key(), as_dict=True)
+    second_jwk["kid"] = "rotation-key-2"
+    requests = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        return httpx.Response(200, json={"keys": [first_jwk] if requests == 1 else [first_jwk, second_jwk]})
+
+    validator = OIDCTokenValidator("https://issuer.example/.well-known/jwks.json", "https://issuer.example",
+                                   "vie-gateway", transport=httpx.MockTransport(handler))
+
+    def token(key: object, kid: str, subject: str) -> str:
+        return jwt.encode(
+            {"agent_id": subject, "requester_id": "requester-1", "intent_scope": "approved",
+             "exp": int(datetime.now(UTC).timestamp()) + 60, "iss": "https://issuer.example",
+             "aud": "vie-gateway", "jti": f"jti-{subject}", "sub": subject},
+            key, algorithm="RS256", headers={"kid": kid})
+
+    first_claims = await validator.validate(token(first_private_key, "rotation-key-1", "one"))
+    second_claims = await validator.validate(token(second_private_key, "rotation-key-2", "two"))
+
+    assert first_claims.agent_id == "one"
+    assert second_claims.agent_id == "two"
+    assert requests == 2
+
+
+@pytest.mark.asyncio
+async def test_oidc_validator_fails_closed_when_provider_is_unavailable() -> None:
+    import httpx
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("jwks unavailable", request=request)
+
+    validator = OIDCTokenValidator("https://issuer.example/.well-known/jwks.json", "https://issuer.example",
+                                   "vie-gateway", transport=httpx.MockTransport(handler))
+    token = jwt.encode(
+        {"agent_id": "agent-1", "requester_id": "requester-1", "intent_scope": "approved",
+         "exp": int(datetime.now(UTC).timestamp()) + 60, "iss": "https://issuer.example",
+         "aud": "vie-gateway", "jti": "jti-outage"},
+        private_key, algorithm="RS256", headers={"kid": "outage-key"})
+
+    with pytest.raises(AuthorizationError, match="oidc_provider_unavailable"):
+        await validator.validate(token)
+
+
 def test_hs256_validator_normalizes_oidc_tenant_alias_and_audience_array() -> None:
     import jwt
 
