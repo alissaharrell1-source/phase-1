@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from validate_ha_disruption_evidence import validate_evidence as validate_ha_evidence
+
 
 SEVERITIES = {"critical", "high", "medium", "low"}
 APPLICABILITY = {"applicable", "not_applicable", "unknown"}
@@ -14,7 +16,8 @@ DISPOSITIONS = {"fixed", "remediate", "exception", "not_applicable"}
 HEX_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
-def validate_review(data: object, *, require_approved: bool = False, release: str | None = None) -> list[str]:
+def validate_review(data: object, *, require_approved: bool = False, release: str | None = None,
+                    ha_evidence: object | None = None, require_ha_evidence: bool = False) -> list[str]:
     errors: list[str] = []
     if not isinstance(data, dict):
         return ["review_must_be_an_object"]
@@ -74,6 +77,23 @@ def validate_review(data: object, *, require_approved: bool = False, release: st
                         datetime.fromisoformat(expires_on)
                     except ValueError:
                         errors.append(f"{prefix}_exception_expiry_invalid")
+    if require_ha_evidence:
+        if status != "approved":
+            errors.append("ha_evidence_requires_approved_review")
+        if ha_evidence is None:
+            errors.append("ha_evidence_required")
+        else:
+            evidence_errors = validate_ha_evidence(ha_evidence)
+            if evidence_errors:
+                errors.extend(f"ha_evidence_invalid:{error}" for error in evidence_errors)
+            if isinstance(ha_evidence, dict):
+                result = ha_evidence.get("result")
+                if isinstance(result, dict) and result.get("valid") is not True:
+                    errors.append("ha_evidence_not_valid")
+                if ha_evidence.get("commit") != data.get("reviewed_commit"):
+                    errors.append("ha_evidence_commit_mismatch")
+                if ha_evidence.get("environment") == "local":
+                    errors.append("ha_evidence_environment_invalid")
     return errors
 
 
@@ -82,13 +102,22 @@ def main() -> int:
     parser.add_argument("--path", type=Path, required=True)
     parser.add_argument("--require-approved", action="store_true")
     parser.add_argument("--release")
+    parser.add_argument("--require-ha-evidence", action="store_true")
+    parser.add_argument("--ha-evidence", type=Path)
     args = parser.parse_args()
     try:
         data: Any = json.loads(args.path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(json.dumps({"valid": False, "errors": [f"review_unreadable:{exc.__class__.__name__}"]}, sort_keys=True))
         return 2
-    errors = validate_review(data, require_approved=args.require_approved, release=args.release)
+    ha_evidence: object | None = None
+    if args.ha_evidence:
+        try:
+            ha_evidence = json.loads(args.ha_evidence.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            ha_evidence = {"_read_error": f"{exc.__class__.__name__}"}
+    errors = validate_review(data, require_approved=args.require_approved, release=args.release,
+                             ha_evidence=ha_evidence, require_ha_evidence=args.require_ha_evidence)
     print(json.dumps({"valid": not errors, "errors": errors}, sort_keys=True))
     return 0 if not errors else 2
 

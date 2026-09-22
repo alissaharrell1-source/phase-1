@@ -32,4 +32,6 @@ Before publishing a release, update `security/release-review.json` with the rele
 python security/validate_release_review.py --path security/release-review.json --require-approved --release v0.1.0
 ```
 
+For a release that has completed staging HA validation, add the disruption artifact to the release record and enforce the commit-bound gate with `python security/validate_release_review.py --path security/release-review.json --require-approved --release v0.1.0 --require-ha-evidence --ha-evidence ha-disruption-evidence.json`. The gate rejects missing, invalid, local-only, or commit-mismatched HA evidence.
+
 The workflow retains JSON scan evidence as CI artifacts. Material findings involving tokens, tenant boundaries, credentials, sandboxing, or audit integrity also require review against the threat model and independent assessment plan.
