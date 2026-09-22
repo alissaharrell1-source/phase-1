@@ -8,6 +8,7 @@ from .contracts import IntentContract, MCPToolCall
 from .runtime import DockerConfig, DockerRunner, EphemeralRunner, Runner
 import os
 import shutil
+from pathlib import Path
 from .security import IntentSigner, JITAuthorizer, OIDCTokenValidator, TokenValidator
 from .verification import Verifier
 from .telemetry import AuditTracer, configure_tracing
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     vault_addr = os.environ.get("VAULT_ADDR")
     vault_token = os.environ.get("VAULT_TOKEN")
     vault_token_file = os.environ.get("VAULT_TOKEN_FILE")
+    require_vault = os.environ.get("MADVA_REQUIRE_VAULT", "false").lower() == "true"
     credential_provider = (VaultCredentialProvider(
                                vault_addr, vault_token, token_file=vault_token_file,
                                namespace=os.environ.get("VAULT_NAMESPACE"),
@@ -105,6 +107,15 @@ def create_app() -> FastAPI:
                 issues.append("missing_madva_audit_log_path")
             if not os.environ.get("MADVA_POLICY_REGISTRY_PATH"):
                 issues.append("missing_madva_policy_registry_path")
+        if require_vault:
+            if not vault_addr:
+                issues.append("missing_vault_addr")
+            elif os.environ.get("MADVA_PRODUCTION", "false").lower() == "true" and not vault_addr.startswith("https://"):
+                issues.append("vault_tls_required")
+            if not vault_token_file:
+                issues.append("missing_vault_token_file")
+            elif not Path(vault_token_file).is_file():
+                issues.append("vault_token_file_unavailable")
         if issues:
             return JSONResponse(status_code=503, content={"status": "not_ready", "issues": issues})
         return {"status": "ready"}

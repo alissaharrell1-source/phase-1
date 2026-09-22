@@ -67,3 +67,31 @@ def test_health_reports_mcp_upstream_runtime(monkeypatch) -> None:
     with TestClient(create_app()) as client:
         response = client.get("/healthz")
     assert response.json()["runtime"] == "mcp-upstream"
+
+
+def test_production_readiness_requires_vault_agent_token_file(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("MADVA_PRODUCTION", "true")
+    monkeypatch.setenv("MADVA_OIDC_JWKS_URL", "https://issuer.example/jwks")
+    monkeypatch.setenv("MADVA_OIDC_ISSUER", "https://issuer.example")
+    monkeypatch.setenv("MADVA_INTENT_SECRET", "intent-secret")
+    monkeypatch.setenv("MADVA_MCP_UPSTREAM_URL", "https://tools.example/mcp")
+    monkeypatch.setenv("MADVA_MCP_UPSTREAM_ALLOWED_HOSTS", "tools.example")
+    monkeypatch.setenv("MADVA_AUDIT_LOG_PATH", str(tmp_path / "receipts.jsonl"))
+    policy_path = tmp_path / "policies.json"
+    policy_path.write_text('{"policies": []}', encoding="utf-8")
+    monkeypatch.setenv("MADVA_POLICY_REGISTRY_PATH", str(policy_path))
+    monkeypatch.setenv("MADVA_REQUIRE_VAULT", "true")
+    monkeypatch.setenv("VAULT_ADDR", "https://vault.example")
+    token_path = tmp_path / "vault-agent" / "token"
+    monkeypatch.setenv("VAULT_TOKEN_FILE", str(token_path))
+
+    with TestClient(create_app()) as client:
+        response = client.get("/readyz")
+    assert response.status_code == 503
+    assert "vault_token_file_unavailable" in response.json()["issues"]
+
+    token_path.parent.mkdir()
+    token_path.write_text("short-lived-token\n", encoding="utf-8")
+    with TestClient(create_app()) as client:
+        response = client.get("/readyz")
+    assert response.status_code == 200

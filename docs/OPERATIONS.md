@@ -12,6 +12,7 @@ Before production rollout, verify:
 - OTLP export points to an authenticated collector/SIEM without including payloads.
 - Vault uses HTTPS and a rotating token file or equivalent short-lived authentication.
 - `VaultCredentialProvider` rereads `VAULT_TOKEN_FILE` for each new lease. Rotate the file atomically through the secret manager, then verify a new lease uses the replacement token while prior leases are released and sanitized.
+- Set `MADVA_REQUIRE_VAULT=true` for deployments that use Vault-backed credentials. Readiness remains failed until `VAULT_ADDR` is TLS-protected and the Vault Agent has supplied the configured token file.
 
 ## Kubernetes rollout
 
