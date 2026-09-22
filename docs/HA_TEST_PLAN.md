@@ -23,6 +23,8 @@ To create review evidence, provide an environment label and the exact commit, fo
 3. During a rolling image update, confirm no unavailable replicas, readiness removes unready pods from traffic, and the rollout either completes or pauses safely.
 4. Temporarily make the audit or OTLP dependency unavailable in staging and confirm the documented fail-closed/readiness behavior without exposing payloads.
 
+Record the disruption run in `security/ha-disruption-evidence.schema.json` and validate it with `python security/validate_ha_disruption_evidence.py --path ha-disruption-evidence.json`. The contract accepts only an immutable image digest, bounded cluster metadata, named disruption cases, numeric observations, and redacted finding codes. Do not add URLs, pod names, tenant identifiers, credentials, response bodies, or free-form notes.
+
 ## Acceptance criteria
 
 - At least two gateway replicas remain available during voluntary single-node disruption.
