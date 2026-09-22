@@ -42,9 +42,25 @@ def test_running_gateway_forwards_to_mcp_container() -> None:
     request = {"jsonrpc": "2.0", "id": "docker-upstream-ci", "method": "tools/call",
                "params": {"tool": "echo", "operation": "run", "arguments": {"value": "docker-ci"},
                            "intent_contract": contract}}
-    response = httpx.post(f"{gateway_url.rstrip('/')}/mcp", json=request,
-                          headers={"Authorization": f"Bearer {_token(secret)}"}, timeout=15)
-    assert response.status_code == 200
+    response: httpx.Response | None = None
+    last_error: Exception | None = None
+    for _attempt in range(15):
+        try:
+            candidate = httpx.post(
+                f"{gateway_url.rstrip('/')}/mcp",
+                json=request,
+                headers={"Authorization": f"Bearer {_token(secret)}"},
+                timeout=15,
+            )
+            response = candidate
+            if candidate.status_code < 500:
+                break
+        except httpx.HTTPError as exc:
+            last_error = exc
+        time.sleep(1)
+    if response is None:
+        raise AssertionError(f"upstream integration request failed: {last_error}")
+    assert response.status_code == 200, response.text
     body = response.json()
     assert body["result"]["output"] == {"echo": {"value": "docker-ci"}, "tool": "echo"}
     assert body["result"]["audit_receipt"]["verification"] == "pass"
