@@ -12,6 +12,7 @@ from vie_gateway.telemetry import AuditTracer
 from vie_gateway.contracts import ExecutionResult, Permit
 from vie_gateway.verification import Verifier
 from vie_gateway.credentials import CredentialLease, VaultCredentialProvider
+from vie_gateway.canonical import canonical_json_bytes
 from vie_gateway.dlp import DLPScanner
 from vie_gateway.mcp_upstream import MCPUpstreamConfig, MCPUpstreamRunner
 
@@ -300,9 +301,14 @@ def test_intent_signer_requires_and_verifies_signature(monkeypatch) -> None:
         IntentSigner(None).verify(unsigned)
     canonical = unsigned.model_dump(mode="json", exclude={"signature"})
     import hashlib, hmac, json
-    signature = hmac.new(secret.encode(), json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode(), hashlib.sha256).hexdigest()
+    signature = hmac.new(secret.encode(), canonical_json_bytes(canonical), hashlib.sha256).hexdigest()
     signed = unsigned.model_copy(update={"signature": signature})
     IntentSigner(None).verify(signed)
+
+
+def test_canonical_json_profile_is_utf8_sorted_and_deterministic() -> None:
+    value = {"z": True, "a": "café", "n": 2}
+    assert canonical_json_bytes(value) == b'{"a":"caf\xc3\xa9","n":2,"z":true}'
 
 
 @pytest.mark.asyncio

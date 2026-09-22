@@ -13,6 +13,7 @@ import httpx
 import jwt
 from jwt.algorithms import RSAAlgorithm
 from jsonschema import Draft202012Validator, SchemaError
+from .canonical import canonical_json_bytes
 from .contracts import IntentContract, Permit, TokenClaims
 
 class AuthorizationError(ValueError):
@@ -29,7 +30,10 @@ class IntentSigner:
         if not intent.signature:
             raise AuthorizationError("missing_intent_signature")
         canonical = intent.model_dump(mode="json", exclude={"signature"})
-        message = json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
+        try:
+            message = canonical_json_bytes(canonical)
+        except ValueError as exc:
+            raise AuthorizationError("invalid_intent_signature") from exc
         expected = hmac.new(self.secret, message, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, intent.signature):
             raise AuthorizationError("invalid_intent_signature")
