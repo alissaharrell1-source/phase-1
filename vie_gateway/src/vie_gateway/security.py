@@ -138,13 +138,17 @@ class OIDCTokenValidator:
     """Async OIDC/JWKS validator with a bounded in-memory key cache."""
 
     def __init__(self, jwks_uri: str, issuer: str, audience: str, allowed_algorithms: tuple[str, ...] = ("RS256",),
-                 transport: httpx.AsyncBaseTransport | None = None) -> None:
+                 transport: httpx.AsyncBaseTransport | None = None, cache_ttl_seconds: float = 300.0) -> None:
+        if cache_ttl_seconds <= 0:
+            raise ValueError("jwks_cache_ttl_must_be_positive")
         self.jwks_uri = jwks_uri
         self.issuer = issuer
         self.audience = audience
         self.allowed_algorithms = allowed_algorithms
         self.transport = transport
+        self.cache_ttl_seconds = cache_ttl_seconds
         self._keys: dict[str, dict[str, object]] = {}
+        self._keys_loaded_at = 0.0
         self._keys_lock = asyncio.Lock()
 
     async def _load_keys(self) -> None:
@@ -163,6 +167,10 @@ class OIDCTokenValidator:
         if not isinstance(keys, list):
             raise AuthorizationError("invalid_jwks")
         self._keys = {str(item["kid"]): item for item in keys if isinstance(item, dict) and "kid" in item}
+        self._keys_loaded_at = time.monotonic()
+
+    def _keys_are_fresh(self) -> bool:
+        return bool(self._keys) and time.monotonic() - self._keys_loaded_at < self.cache_ttl_seconds
 
     async def validate(self, token: str) -> TokenClaims:
         try:
@@ -173,9 +181,9 @@ class OIDCTokenValidator:
             raise AuthorizationError("invalid_token") from exc
         if algorithm not in self.allowed_algorithms or not kid:
             raise AuthorizationError("unsupported_token_algorithm")
-        if kid not in self._keys:
+        if kid not in self._keys or not self._keys_are_fresh():
             async with self._keys_lock:
-                if kid not in self._keys:
+                if kid not in self._keys or not self._keys_are_fresh():
                     await self._load_keys()
         jwk = self._keys.get(kid)
         if jwk is None:

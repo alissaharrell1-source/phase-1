@@ -602,6 +602,39 @@ async def test_oidc_validator_coalesces_concurrent_jwks_refreshes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_oidc_validator_refreshes_expired_jwks_cache() -> None:
+    import asyncio
+    import httpx
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from jwt.algorithms import RSAAlgorithm
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_jwk = RSAAlgorithm.to_jwk(private_key.public_key(), as_dict=True)
+    public_jwk["kid"] = "expiring-key"
+    requests = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        return httpx.Response(200, json={"keys": [public_jwk]})
+
+    token = jwt.encode(
+        {"agent_id": "agent-1", "requester_id": "requester-1", "intent_scope": "approved",
+         "exp": int(datetime.now(UTC).timestamp()) + 60, "iss": "https://issuer.example",
+         "aud": "vie-gateway", "jti": "jti-expiring"},
+        private_key, algorithm="RS256", headers={"kid": "expiring-key"})
+    validator = OIDCTokenValidator("https://issuer.example/.well-known/jwks.json", "https://issuer.example",
+                                   "vie-gateway", transport=httpx.MockTransport(handler), cache_ttl_seconds=0.001)
+
+    await validator.validate(token)
+    await asyncio.sleep(0.01)
+    await validator.validate(token)
+
+    assert requests == 2
+
+
+@pytest.mark.asyncio
 async def test_oidc_validator_fails_closed_when_provider_is_unavailable() -> None:
     import httpx
     import jwt
