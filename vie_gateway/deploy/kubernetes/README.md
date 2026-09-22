@@ -21,3 +21,5 @@ kubectl -n madva-system get pods,svc,pdb
 ```
 
 The placeholder policy registry intentionally contains no approved revisions, so production tool calls remain fail-closed until the deployment owner supplies approved policy records.
+
+Run the cluster disruption and load acceptance procedure in [`docs/HA_TEST_PLAN.md`](../../../docs/HA_TEST_PLAN.md) after the first rollout and again before each infrastructure or gateway release.
