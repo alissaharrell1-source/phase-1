@@ -5,6 +5,7 @@ metadata:
   namespace: madva-system
 data:
   MADVA_OIDC_AUDIENCE: vie-gateway
+  MADVA_OIDC_JWKS_CACHE_TTL_SECONDS: "300"
   MADVA_MCP_UPSTREAM_URL: http://mcp-tool-server.madva-system.svc.cluster.local:9000/mcp
   MADVA_MCP_UPSTREAM_ALLOWED_HOSTS: mcp-tool-server.madva-system.svc.cluster.local
   MADVA_MCP_UPSTREAM_LIFECYCLE: stateless

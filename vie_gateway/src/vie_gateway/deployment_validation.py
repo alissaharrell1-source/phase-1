@@ -13,6 +13,7 @@ from uuid import uuid4
 import httpx
 
 from .credentials import VaultCredentialProvider
+from .security import oidc_cache_ttl_from_environment
 
 
 _DIGEST_IMAGE = re.compile(r"@sha256:[0-9a-f]{64}$")
@@ -75,6 +76,11 @@ def validate_environment(environment: Mapping[str, str]) -> DeploymentValidation
         errors.append("missing_madva_oidc_audience")
     else:
         checks.append("madva_oidc_audience")
+    try:
+        oidc_cache_ttl_from_environment(environment)
+        checks.append("bounded_oidc_jwks_cache_ttl")
+    except ValueError as exc:
+        errors.append(str(exc))
 
     intent_secret = _value(environment, "MADVA_INTENT_SECRET")
     if intent_secret in _PLACEHOLDER_VALUES or len(intent_secret) < 32:

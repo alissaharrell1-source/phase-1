@@ -12,7 +12,8 @@ from .audit_store import AuditChainError, AuditStore, JsonlAuditStore
 from .contracts import AuditReceipt, ExecutionResult, IntentContract, MCPToolCall, Permit, TokenClaims
 from .credentials import CredentialProvider
 from .runtime import EphemeralRunner, Runner, RuntimeErrorBoundary
-from .security import AuthorizationError, IntentSigner, JITAuthorizer, OIDCTokenValidator, TokenValidator
+from .security import (AuthorizationError, IntentSigner, JITAuthorizer, OIDCTokenValidator,
+                       TokenValidator, oidc_cache_ttl_from_environment)
 from .policy import PolicyApprovalError, PolicyRegistry
 from .telemetry import AuditTracer
 from .verification import Verifier
@@ -150,6 +151,7 @@ def default_dependencies() -> GraphDependencies:
             jwks_uri=os.environ["MADVA_OIDC_JWKS_URL"],
             issuer=os.environ.get("MADVA_OIDC_ISSUER", ""),
             audience=os.environ.get("MADVA_OIDC_AUDIENCE", "vie-gateway"),
+            cache_ttl_seconds=oidc_cache_ttl_from_environment(),
         )
     from .credentials import DenyAllCredentialProvider, VaultCredentialProvider
     vault_addr = os.environ.get("VAULT_ADDR")

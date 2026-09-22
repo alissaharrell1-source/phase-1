@@ -5,6 +5,7 @@
 Before production rollout, verify:
 
 - OIDC JWKS, issuer, and audience are configured and reachable.
+- `MADVA_OIDC_JWKS_CACHE_TTL_SECONDS` is set between 1 and 3600 seconds; the default is 300 seconds.
 - Intent signing secret is supplied by a secret manager and rotated through a controlled procedure.
 - Tenant binding and approved policy enforcement are enabled.
 - The execution backend uses immutable image digests or an allowlisted MCP upstream.

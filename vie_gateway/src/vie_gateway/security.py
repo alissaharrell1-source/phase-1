@@ -5,10 +5,11 @@ import asyncio
 import hashlib
 import hmac
 import json
+import math
 import os
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Mapping
 from uuid import uuid4
 import httpx
 import jwt
@@ -19,6 +20,18 @@ from .contracts import IntentContract, Permit, TokenClaims
 
 class AuthorizationError(ValueError):
     """Raised for any authentication, binding, or policy failure."""
+
+
+def oidc_cache_ttl_from_environment(environment: Mapping[str, str] | None = None) -> float:
+    values = environment if environment is not None else os.environ
+    raw = values.get("MADVA_OIDC_JWKS_CACHE_TTL_SECONDS", "300").strip()
+    try:
+        ttl = float(raw)
+    except ValueError as exc:
+        raise ValueError("oidc_jwks_cache_ttl_invalid") from exc
+    if not math.isfinite(ttl) or ttl < 1 or ttl > 3600:
+        raise ValueError("oidc_jwks_cache_ttl_out_of_bounds")
+    return ttl
 
 
 class IntentSigner:

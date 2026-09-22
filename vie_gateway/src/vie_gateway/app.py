@@ -9,7 +9,7 @@ from .runtime import DockerConfig, DockerRunner, EphemeralRunner, Runner
 import os
 import shutil
 from pathlib import Path
-from .security import IntentSigner, JITAuthorizer, OIDCTokenValidator, TokenValidator
+from .security import IntentSigner, JITAuthorizer, OIDCTokenValidator, TokenValidator, oidc_cache_ttl_from_environment
 from .verification import Verifier
 from .telemetry import AuditTracer, configure_tracing, validate_otlp_endpoint
 from .graph import GraphDependencies, build_vie_graph
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
             jwks_uri=os.environ["MADVA_OIDC_JWKS_URL"],
             issuer=os.environ.get("MADVA_OIDC_ISSUER", ""),
             audience=os.environ.get("MADVA_OIDC_AUDIENCE", "vie-gateway"),
+            cache_ttl_seconds=oidc_cache_ttl_from_environment(),
         )
     verifier, tracer = Verifier(), AuditTracer()
     audit_path = os.environ.get("MADVA_AUDIT_LOG_PATH")

@@ -45,6 +45,13 @@ def test_rejects_missing_tenant_and_approved_policy_enforcement() -> None:
     assert "approved_policy_required" in result.errors
 
 
+def test_rejects_unbounded_oidc_jwks_cache_ttl() -> None:
+    environment = _valid()
+    environment["MADVA_OIDC_JWKS_CACHE_TTL_SECONDS"] = "86400"
+    result = validate_environment(environment)
+    assert "oidc_jwks_cache_ttl_out_of_bounds" in result.errors
+
+
 def test_upstream_backend_requires_allowlist() -> None:
     environment = _valid()
     environment.pop("MADVA_RUNTIME_IMAGE")
