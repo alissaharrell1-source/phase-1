@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import os
 from typing import Iterator
+from urllib.parse import urlparse
 
 try:
     from opentelemetry import trace
@@ -30,6 +31,16 @@ def _otlp_trace_endpoint(endpoint: str) -> str:
     return normalized if normalized.endswith("/v1/traces") else f"{normalized}/v1/traces"
 
 
+def validate_otlp_endpoint(endpoint: str, *, require_tls: bool = False) -> None:
+    parsed = urlparse(endpoint)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("otlp_endpoint_invalid")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("otlp_endpoint_must_not_contain_credentials_or_query")
+    if require_tls and parsed.scheme != "https":
+        raise ValueError("otlp_tls_required")
+
+
 def configure_tracing(service_name: str = "madva-vie-gateway") -> None:
     """Configure the SDK once; export spans only when an OTLP endpoint is set."""
     global _configured
@@ -50,6 +61,7 @@ def configure_tracing(service_name: str = "madva-vie-gateway") -> None:
     }))
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get("MADVA_SIEM_OTLP_ENDPOINT")
     if endpoint:
+        validate_otlp_endpoint(endpoint, require_tls=os.environ.get("MADVA_PRODUCTION", "false").lower() == "true")
         provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
             endpoint=_otlp_trace_endpoint(endpoint),
             headers=_otlp_headers(os.environ.get("OTEL_EXPORTER_OTLP_HEADERS")),

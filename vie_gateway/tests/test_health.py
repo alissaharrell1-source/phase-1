@@ -95,3 +95,24 @@ def test_production_readiness_requires_vault_agent_token_file(monkeypatch, tmp_p
     with TestClient(create_app()) as client:
         response = client.get("/readyz")
     assert response.status_code == 200
+
+
+def test_production_readiness_requires_otlp_endpoint_when_enabled(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("MADVA_PRODUCTION", "true")
+    monkeypatch.setenv("MADVA_OIDC_JWKS_URL", "https://issuer.example/jwks")
+    monkeypatch.setenv("MADVA_OIDC_ISSUER", "https://issuer.example")
+    monkeypatch.setenv("MADVA_INTENT_SECRET", "intent-secret")
+    monkeypatch.setenv("MADVA_MCP_UPSTREAM_URL", "https://tools.example/mcp")
+    monkeypatch.setenv("MADVA_MCP_UPSTREAM_ALLOWED_HOSTS", "tools.example")
+    monkeypatch.setenv("MADVA_AUDIT_LOG_PATH", str(tmp_path / "receipts.jsonl"))
+    policy_path = tmp_path / "policies.json"
+    policy_path.write_text('{"policies": []}', encoding="utf-8")
+    monkeypatch.setenv("MADVA_POLICY_REGISTRY_PATH", str(policy_path))
+    monkeypatch.setenv("MADVA_REQUIRE_OTEL", "true")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.delenv("MADVA_SIEM_OTLP_ENDPOINT", raising=False)
+
+    with TestClient(create_app()) as client:
+        response = client.get("/readyz")
+    assert response.status_code == 503
+    assert "missing_otlp_endpoint" in response.json()["issues"]

@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 from .security import IntentSigner, JITAuthorizer, OIDCTokenValidator, TokenValidator
 from .verification import Verifier
-from .telemetry import AuditTracer, configure_tracing
+from .telemetry import AuditTracer, configure_tracing, validate_otlp_endpoint
 from .graph import GraphDependencies, build_vie_graph
 from .credentials import DenyAllCredentialProvider, VaultCredentialProvider
 from .mcp_upstream import MCPUpstreamConfig, MCPUpstreamRunner
@@ -72,6 +72,7 @@ def create_app() -> FastAPI:
     vault_token = os.environ.get("VAULT_TOKEN")
     vault_token_file = os.environ.get("VAULT_TOKEN_FILE")
     require_vault = os.environ.get("MADVA_REQUIRE_VAULT", "false").lower() == "true"
+    require_otlp = os.environ.get("MADVA_REQUIRE_OTEL", "false").lower() == "true"
     credential_provider = (VaultCredentialProvider(
                                vault_addr, vault_token, token_file=vault_token_file,
                                namespace=os.environ.get("VAULT_NAMESPACE"),
@@ -116,6 +117,18 @@ def create_app() -> FastAPI:
                 issues.append("missing_vault_token_file")
             elif not Path(vault_token_file).is_file():
                 issues.append("vault_token_file_unavailable")
+        if require_otlp:
+            otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get("MADVA_SIEM_OTLP_ENDPOINT")
+            if not otlp_endpoint:
+                issues.append("missing_otlp_endpoint")
+            else:
+                try:
+                    validate_otlp_endpoint(
+                        otlp_endpoint,
+                        require_tls=os.environ.get("MADVA_PRODUCTION", "false").lower() == "true",
+                    )
+                except ValueError as exc:
+                    issues.append(str(exc))
         if issues:
             return JSONResponse(status_code=503, content={"status": "not_ready", "issues": issues})
         return {"status": "ready"}

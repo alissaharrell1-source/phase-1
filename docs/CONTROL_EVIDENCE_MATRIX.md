@@ -10,7 +10,7 @@
 | C-06 Credential isolation | `VaultCredentialProvider`, opaque leases, and Vault readiness gate | Vault tests, token-file rotation regression, Docker credential integration, and `docs/VAULT_DEPLOYMENT.md` | Execute the Vault Agent rotation test in the target deployment |
 | C-07 Result verification/DLP | `Verifier`, output schema, expanded `DLPScanner` | gateway, DLP, and failure-path tests | Integrate and assess an external DSPM/memory scanner in the target deployment |
 | C-08 Audit integrity | `JsonlAuditStore`, cross-process lock, fail-closed verifier, and read-only backup verifier | audit tests, disruption/missing-backup tests, restore/tamper tests, and `madva-audit-verify` | Test shared-storage disruption and filesystem-consistent restore in the target platform |
-| C-09 Telemetry redaction | bounded OTel attributes | span tests and OTLP config checks | Collector retention/access review |
+| C-09 Telemetry redaction | bounded OTel attributes, safe OTLP endpoint validation, and readiness gate | span tests, OTLP validation tests, deployment config, and `docs/OTEL_OPERATIONS.md` | Review collector retention, access, encryption, and deletion controls on the target platform |
 | C-10 HA operations | Kubernetes Deployment, Service, PDB, probes | Kustomize render and operations guide | Cluster disruption/load test |
 | C-11 Reproducibility | CI, security suite, benchmark | GitHub Actions artifacts and benchmark JSON | External environment replication |
 | C-12 Supply-chain hygiene | Dependency audit, Bandit, Trivy workflow, Dependabot, and machine-readable triage policy | `.github/workflows/security.yml` artifacts, `security/scan-policy.json`, and `docs/SUPPLY_CHAIN_TRIAGE.md` | Advisory applicability and remediation review for each release |

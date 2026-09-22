@@ -10,7 +10,7 @@ Before applying it:
 4. Select an RWX volume implementation that honors advisory file locking and fsync. The audit chain cannot safely use an object-store mount or an RWX provider without those guarantees.
 5. Deploy the isolated MCP execution service and configure its internal address in `configmap.yaml`. Keep the gateway Service internal or put it behind an authenticated ingress.
 6. For Vault-backed credentials, inject `VAULT_ADDR=https://...` and a rotating `VAULT_TOKEN_FILE` through Vault Agent or an external secret manager; do not place a root token in this repository.
-7. Configure the OTLP collector/SIEM endpoint and authentication headers through deployment secrets or an external secret manager.
+7. Configure the OTLP collector/SIEM endpoint over HTTPS and provide `OTEL_EXPORTER_OTLP_HEADERS` through deployment secrets, or configure equivalent mTLS trust outside this base manifest. `MADVA_REQUIRE_OTEL=true` keeps the pod unready when the endpoint is missing or insecure.
 
 Apply with:
 
