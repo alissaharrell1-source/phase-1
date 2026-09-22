@@ -46,9 +46,9 @@ Exit criteria: policy and tenant changes are auditable, versioned, approval-gate
 
 Exit criteria: all applicable closure gates have evidence, findings are remediated or accepted, and the release review is approved.
 
-## Immediate implementation step
+## Immediate implementation step — complete
 
-Begin M1 by adding a deployment-validation command set and a staging configuration template. The commands must fail closed, emit redacted machine-readable results, and be runnable by CI or an operator without embedding credentials in the repository.
+The first M1 deliverable is now present as `madva-deployment-validate`. It fails closed, emits redacted machine-readable results, and is runnable by CI or an operator without embedding credentials in the repository. The next M1 increment is live endpoint checks against staging identity, Vault, OTLP, and shared-storage services.
 
 ## Completion boundary
 
