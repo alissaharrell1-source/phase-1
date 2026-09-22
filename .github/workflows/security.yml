@@ -3,6 +3,8 @@ name: Security Scans
 on:
   push:
   pull_request:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -17,9 +19,13 @@ jobs:
           python-version: "3.12"
       - name: Validate supply-chain policy
         run: python -m json.tool security/scan-policy.json > /dev/null
+      - name: Validate release review record
+        run: python security/validate_release_review.py --path security/release-review.json
       - name: Install application and audit tools
         run: |
-          python -m pip install -e "./vie_gateway[dev]"
+          python -m pip install -r vie_gateway/requirements-dev.lock
+          python -m pip install --no-deps -e ./vie_gateway
+          python -m pip check
           python -m pip install pip-audit bandit[toml]
       - name: Audit Python dependencies
         run: pip-audit --format=json --output=pip-audit.json
@@ -35,6 +41,19 @@ jobs:
             bandit.json
           if-no-files-found: error
           retention-days: 90
+
+  release-review:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Require approved release review
+        run: python security/validate_release_review.py --path security/release-review.json --require-approved --release "${{ github.event.release.tag_name }}"
 
   container:
     runs-on: ubuntu-latest
