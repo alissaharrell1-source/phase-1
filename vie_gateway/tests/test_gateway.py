@@ -83,6 +83,20 @@ def test_docker_runner_requires_immutable_image_and_hardening() -> None:
     assert "--network=none" in command
     assert "--read-only" in command
     assert "--cap-drop=ALL" in command
+    assert "--security-opt=no-new-privileges" in command
+    assert "--pids-limit=64" in command
+    assert "--tmpfs" in command
+    assert "/tmp:rw,noexec,nosuid,nodev,size=64m" in command
+
+
+def test_kubernetes_manifest_disables_host_namespace_sharing() -> None:
+    manifest = Path(__file__).parents[1] / "deploy" / "kubernetes" / "deployment.yaml"
+    contents = manifest.read_text(encoding="utf-8")
+    assert "hostNetwork: false" in contents
+    assert "hostPID: false" in contents
+    assert "hostIPC: false" in contents
+    assert "shareProcessNamespace: false" in contents
+    assert "type: RuntimeDefault" in contents
 
 def test_docker_runner_mounts_only_opaque_read_only_lease() -> None:
     runner = DockerRunner(DockerConfig(image="madva/tool@sha256:" + "a" * 64))

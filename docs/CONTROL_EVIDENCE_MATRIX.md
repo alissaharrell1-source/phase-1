@@ -6,7 +6,7 @@
 | C-02 Intent integrity | `IntentSigner`, shared canonical JSON profile, and Architect stage | `tests/test_gateway.py`, `docs/INTENT_SIGNING.md` | Cross-language implementation review against the published vector |
 | C-03 Tenant isolation | `JITAuthorizer`, production flags, and explicit tenant claim mapping | tenant tests, security regressions, and `docs/TENANT_CLAIMS.md` | Verify the target identity-provider mapping against this contract |
 | C-04 Approved policy revision | `PolicyRegistry` with approval metadata invariants | `tests/test_policy.py`, `docs/POLICY_APPROVALS.md` | Review the external approval service and registry distribution on the target platform |
-| C-05 Execution isolation | `DockerRunner`, Kubernetes security context | Docker tests and manifest rendering | Host/runtime escape assessment |
+| C-05 Execution isolation | Hardened `DockerRunner`, Kubernetes security context, and host-namespace guards | Docker tests, timeout-cleanup path, and manifest regression checks | Independent host/runtime escape assessment |
 | C-06 Credential isolation | `VaultCredentialProvider` and opaque leases | Vault tests, token-file rotation regression, and Docker credential integration | Vault Agent/rotation integration in the target deployment |
 | C-07 Result verification/DLP | `Verifier`, output schema, `DLPScanner` | gateway and verification tests | DSPM coverage assessment |
 | C-08 Audit integrity | `JsonlAuditStore`, cross-process lock, and read-only backup verifier | audit tests, restore/tamper tests, and `madva-audit-verify` | Shared-storage disruption and backup restore in the target platform |

@@ -26,6 +26,10 @@ spec:
     spec:
       serviceAccountName: madva-vie-gateway
       automountServiceAccountToken: false
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      shareProcessNamespace: false
       terminationGracePeriodSeconds: 30
       securityContext:
         runAsNonRoot: true

@@ -72,6 +72,7 @@ class DockerRunner:
             self.config.executable, "run", "--rm", "-i",
             "--network=none", "--read-only", "--cap-drop=ALL",
             "--security-opt=no-new-privileges", "--pids-limit=64",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
             "--memory", self.config.memory, "--cpus", self.config.cpus,
         ]
         if cidfile:
@@ -96,6 +97,32 @@ class DockerRunner:
         await inspect.wait()
         return inspect.returncode != 0
 
+    async def _force_remove(self, cidfile: str) -> bool:
+        try:
+            with open(cidfile, encoding="ascii") as handle:
+                container_id = handle.read().strip()
+        except (FileNotFoundError, OSError, UnicodeDecodeError):
+            return False
+        if not container_id:
+            return False
+        remove = await asyncio.create_subprocess_exec(
+            self.config.executable, "rm", "-f", container_id,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        )
+        await remove.wait()
+        return await self._cleanup_verified(cidfile)
+
+    @staticmethod
+    def _remove_cid_artifacts(cidfile: str, cid_directory: str) -> None:
+        try:
+            os.unlink(cidfile)
+        except FileNotFoundError:
+            pass
+        try:
+            os.rmdir(cid_directory)
+        except OSError:
+            pass
+
     async def run(self, permit: Permit, arguments: dict[str, Any],
                   credential_leases: list[CredentialLease] | None = None) -> ExecutionResult:
         session_id = uuid4()
@@ -106,25 +133,18 @@ class DockerRunner:
             *self.command(credential_leases, cidfile), stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
+        cleanup_status: Literal["verified", "incomplete", "unknown"] = "unknown"
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(payload), self.config.timeout_seconds)
+            cleanup_status = "verified" if await self._cleanup_verified(cidfile) else "unknown"
         except asyncio.TimeoutError as exc:
             process.kill()
             await process.wait()
+            cleanup_status = "verified" if await self._force_remove(cidfile) else "unknown"
             raise RuntimeErrorBoundary("execution_timeout") from exc
         finally:
             arguments.clear()
-        cleanup_status: Literal["verified", "incomplete", "unknown"] = (
-            "verified" if await self._cleanup_verified(cidfile) else "unknown"
-        )
-        try:
-            os.unlink(cidfile)
-        except FileNotFoundError:
-            pass
-        try:
-            os.rmdir(cid_directory)
-        except OSError:
-            pass
+            self._remove_cid_artifacts(cidfile, cid_directory)
         if process.returncode != 0:
             detail = stderr.decode(errors="replace")[-500:]
             raise RuntimeErrorBoundary(f"sandbox_failed:{detail}")
