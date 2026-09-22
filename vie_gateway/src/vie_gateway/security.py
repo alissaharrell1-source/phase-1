@@ -43,13 +43,21 @@ def _decode_part(value: str) -> bytes:
 
 
 def _normalize_identity_claims(payload: dict[str, Any]) -> dict[str, Any]:
-    """Normalize common OIDC tenant aliases without weakening the binding."""
+    """Normalize the supported tenant aliases and fail closed on ambiguity."""
     normalized = dict(payload)
-    tenant_id = normalized.get("tenant_id")
-    tid = normalized.get("tid")
+    supplied = {
+        name: normalized[name]
+        for name in ("tenant_id", "tid")
+        if name in normalized and normalized[name] is not None
+    }
+    invalid = [name for name, value in supplied.items() if not isinstance(value, str) or not value.strip()]
+    if invalid:
+        raise AuthorizationError("invalid_tenant_claim")
+    tenant_id = supplied.get("tenant_id")
+    tid = supplied.get("tid")
     if tenant_id is not None and tid is not None and tenant_id != tid:
         raise AuthorizationError("tenant_claim_mismatch")
-    if tenant_id is None and isinstance(tid, str) and tid:
+    if tenant_id is None and tid is not None:
         normalized["tenant_id"] = tid
     return normalized
 

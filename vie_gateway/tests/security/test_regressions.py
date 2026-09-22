@@ -45,6 +45,19 @@ def test_security_rejects_conflicting_tenant_claims() -> None:
         TokenValidator(secret=SECRET, issuer="issuer.example").validate(token)
 
 
+def test_security_maps_tid_alias_to_canonical_tenant_id() -> None:
+    token = _token(_claims(tid="tenant-a"))
+    claims = TokenValidator(secret=SECRET, issuer="issuer.example").validate(token)
+    assert claims.tenant_id == "tenant-a"
+
+
+@pytest.mark.parametrize("claim", ["", "   ", 42, ["tenant-a"]])
+def test_security_rejects_malformed_tenant_claims(claim: object) -> None:
+    token = _token(_claims(tenant_id=claim))
+    with pytest.raises(AuthorizationError, match="invalid_tenant_claim"):
+        TokenValidator(secret=SECRET, issuer="issuer.example").validate(token)
+
+
 def test_security_rejects_wrong_audience_even_with_valid_signature() -> None:
     token = _token(_claims(aud="another-service"))
     with pytest.raises(AuthorizationError, match="issuer_or_audience_mismatch"):
