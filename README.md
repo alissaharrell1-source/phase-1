@@ -4,7 +4,7 @@ MADVA Phase 1 is an open security-engineering prototype for a Verified Intent Ex
 
 ## Current status
 
-The Phase 1 implementation and local automated acceptance baseline are complete. The current configured suite is 86 passed with 1 warning, mypy passes, and the locked development dependencies resolve successfully. External validation in the target deployment is still required before production readiness can be claimed; see the [Phase 1 closure checklist](docs/PHASE_1_CLOSURE.md).
+The Phase 1 implementation and local automated acceptance baseline are complete. The current configured suite is 86 passed with 1 warning, mypy passes, and the locked development dependencies resolve successfully. External validation in the target deployment is still required before production readiness can be claimed; see the [Phase 1 closure checklist](docs/PHASE_1_CLOSURE.md). Phase 2 work is tracked in the [Phase 2 plan](docs/PHASE_2_PLAN.md).
 
 The repository also includes the following hardening:
 
