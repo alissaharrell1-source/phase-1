@@ -15,7 +15,7 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
       mcp-upstream:
-        condition: service_started
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
@@ -34,6 +34,11 @@ services:
       MCP_UPSTREAM_TOKEN: local-upstream-token
     expose:
       - "9000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 9000), 2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
