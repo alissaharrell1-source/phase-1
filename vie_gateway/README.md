@@ -31,7 +31,7 @@ Set `MADVA_INTENT_SECRET` to require HMAC-signed Intent Contracts. Without it, u
 
 Set `MADVA_PRODUCTION=true` to make readiness require OIDC/JWKS configuration, signed Intent Contracts, and either an immutable Docker runtime image or an MCP upstream with an explicit host allowlist.
 
-Before a staging deployment, run `madva-deployment-validate` (or `python -m vie_gateway.deployment_validation_cli`) with the deployment environment loaded. It emits redacted JSON only and exits `0` when the production contract is satisfied or `2` with stable configuration errors.
+Before a staging deployment, run `madva-deployment-validate` (or `python -m vie_gateway.deployment_validation_cli`) with the deployment environment loaded. Add `--live` to check OIDC discovery/JWKS, Vault health and optional credential access, OTLP connectivity, and audit-volume writability. It emits redacted JSON only and exits `0` when the contract is satisfied or `2` with stable configuration errors.
 
 Set `MADVA_AUDIT_LOG_PATH` to persist audit receipts in an append-only SHA-256 hash chain. Production readiness requires this setting. Stored records contain receipt metadata only; tool arguments, tool output, credentials, and bearer tokens are not persisted.
 

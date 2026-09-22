@@ -48,7 +48,7 @@ Exit criteria: all applicable closure gates have evidence, findings are remediat
 
 ## Immediate implementation step — complete
 
-The first M1 deliverable is now present as `madva-deployment-validate`. It fails closed, emits redacted machine-readable results, and is runnable by CI or an operator without embedding credentials in the repository. The next M1 increment is live endpoint checks against staging identity, Vault, OTLP, and shared-storage services.
+The first M1 deliverable is now present as `madva-deployment-validate`. It fails closed, emits redacted machine-readable results, and is runnable by CI or an operator without embedding credentials in the repository. Its `--live` mode checks staging OIDC discovery/JWKS, Vault health and optional credential access, OTLP connectivity, and audit-volume writability without printing secrets. The next M1 increment is running this command against the selected staging services and attaching the redacted result to the release record.
 
 ## Completion boundary
 

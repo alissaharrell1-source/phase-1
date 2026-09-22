@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import re
+import tempfile
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Mapping
 from urllib.parse import urlsplit
+from uuid import uuid4
+
+import httpx
+
+from .credentials import VaultCredentialProvider
 
 
 _DIGEST_IMAGE = re.compile(r"@sha256:[0-9a-f]{64}$")
@@ -116,5 +125,88 @@ def validate_environment(environment: Mapping[str, str]) -> DeploymentValidation
     if _is_true(environment, "MADVA_REQUIRE_OTEL"):
         endpoint = "OTEL_EXPORTER_OTLP_ENDPOINT" if _value(environment, "OTEL_EXPORTER_OTLP_ENDPOINT") else "MADVA_SIEM_OTLP_ENDPOINT"
         _check_url(environment, endpoint, require_tls=require_tls, errors=errors, checks=checks)
+
+    return DeploymentValidation(tuple(errors), tuple(checks))
+
+
+async def validate_live_environment(environment: Mapping[str, str]) -> DeploymentValidation:
+    """Run safe network and storage checks after static validation succeeds."""
+    static = validate_environment(environment)
+    if not static.valid:
+        return static
+    errors = list(static.errors)
+    checks = list(static.checks)
+    production = _is_true(environment, "MADVA_PRODUCTION")
+
+    issuer = _value(environment, "MADVA_OIDC_ISSUER").rstrip("/")
+    jwks_url = _value(environment, "MADVA_OIDC_JWKS_URL")
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            discovery = await client.get(f"{issuer}/.well-known/openid-configuration")
+            discovery.raise_for_status()
+            metadata = discovery.json()
+            if not isinstance(metadata, dict) or str(metadata.get("issuer", "")).rstrip("/") != issuer:
+                errors.append("oidc_discovery_issuer_mismatch")
+            elif str(metadata.get("jwks_uri", "")) != jwks_url:
+                errors.append("oidc_discovery_jwks_mismatch")
+            keys_response = await client.get(jwks_url)
+            keys_response.raise_for_status()
+            keys_body = keys_response.json()
+            if not isinstance(keys_body, dict) or not isinstance(keys_body.get("keys"), list) or not keys_body["keys"]:
+                errors.append("oidc_jwks_empty")
+            else:
+                checks.append("oidc_discovery_and_jwks")
+    except (httpx.HTTPError, ValueError, TypeError):
+        errors.append("oidc_provider_unavailable")
+
+    audit_path = Path(_value(environment, "MADVA_AUDIT_LOG_PATH"))
+    try:
+        with tempfile.NamedTemporaryFile(prefix=".madva-validation-", dir=audit_path.parent, delete=True) as probe:
+            probe.write(b"madva-validation-probe\n")
+            probe.flush()
+        checks.append("audit_storage_writable")
+    except OSError:
+        errors.append("audit_storage_unwritable")
+
+    if _is_true(environment, "MADVA_REQUIRE_VAULT"):
+        vault_addr = _value(environment, "VAULT_ADDR").rstrip("/")
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                health = await client.get(f"{vault_addr}/v1/sys/health")
+                health.raise_for_status()
+            token_file = _value(environment, "VAULT_TOKEN_FILE")
+            reference = _value(environment, "MADVA_VALIDATION_VAULT_REFERENCE")
+            if reference:
+                with tempfile.TemporaryDirectory(prefix="madva-vault-validation-") as lease_root:
+                    provider = VaultCredentialProvider(
+                        vault_addr,
+                        token_file=token_file,
+                        require_tls=production,
+                        lease_root=lease_root,
+                    )
+                    lease = await provider.acquire(
+                        reference,
+                        uuid4(),
+                        datetime.now(UTC) + timedelta(minutes=1),
+                    )
+                    await provider.release(lease)
+                checks.append("vault_health_and_credential_access")
+            else:
+                checks.append("vault_health_and_token_file")
+        except (httpx.HTTPError, OSError, PermissionError, ValueError):
+            errors.append("vault_unavailable_or_credential_check_failed")
+
+    if _is_true(environment, "MADVA_REQUIRE_OTEL"):
+        endpoint_name = "OTEL_EXPORTER_OTLP_ENDPOINT" if _value(environment, "OTEL_EXPORTER_OTLP_ENDPOINT") else "MADVA_SIEM_OTLP_ENDPOINT"
+        parsed = urlsplit(_value(environment, endpoint_name))
+        try:
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(parsed.hostname, port), timeout=5.0)
+            writer.close()
+            await writer.wait_closed()
+            del reader
+            checks.append("otel_endpoint_reachable")
+        except (asyncio.TimeoutError, OSError, ValueError):
+            errors.append("otel_endpoint_unreachable")
 
     return DeploymentValidation(tuple(errors), tuple(checks))
