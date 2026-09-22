@@ -9,7 +9,7 @@
 | C-05 Execution isolation | `DockerRunner`, Kubernetes security context | Docker tests and manifest rendering | Host/runtime escape assessment |
 | C-06 Credential isolation | `VaultCredentialProvider` and opaque leases | Vault tests and Docker credential integration | Vault Agent/rotation integration test |
 | C-07 Result verification/DLP | `Verifier`, output schema, `DLPScanner` | gateway and verification tests | DSPM coverage assessment |
-| C-08 Audit integrity | `JsonlAuditStore` and cross-process lock | audit tests and chain verification | Shared-storage and backup restore test |
+| C-08 Audit integrity | `JsonlAuditStore`, cross-process lock, and read-only backup verifier | audit tests, restore/tamper tests, and `madva-audit-verify` | Shared-storage disruption and backup restore in the target platform |
 | C-09 Telemetry redaction | bounded OTel attributes | span tests and OTLP config checks | Collector retention/access review |
 | C-10 HA operations | Kubernetes Deployment, Service, PDB, probes | Kustomize render and operations guide | Cluster disruption/load test |
 | C-11 Reproducibility | CI, security suite, benchmark | GitHub Actions artifacts and benchmark JSON | External environment replication |

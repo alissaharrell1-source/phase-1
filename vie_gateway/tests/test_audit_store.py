@@ -1,5 +1,6 @@
 import asyncio
 import json
+import shutil
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -63,3 +64,32 @@ async def test_audit_store_coordinates_multiple_gateway_instances(tmp_path) -> N
     await asyncio.gather(first.append(_receipt()), second.append(_receipt()))
 
     assert await first.verify() == 2
+
+
+def test_audit_backup_restore_verifies_without_creating_lock_sidecar(tmp_path) -> None:
+    source = tmp_path / "receipts.jsonl"
+    backup = tmp_path / "restore" / "receipts.jsonl"
+    store = JsonlAuditStore(source)
+
+    asyncio.run(store.append(_receipt()))
+    asyncio.run(store.append(_receipt()))
+    backup.parent.mkdir()
+    shutil.copy2(source, backup)
+
+    assert JsonlAuditStore.verify_path(backup) == 2
+    assert not backup.with_name("receipts.jsonl.lock").exists()
+
+
+def test_audit_backup_restore_rejects_tampering(tmp_path) -> None:
+    source = tmp_path / "receipts.jsonl"
+    backup = tmp_path / "restore.jsonl"
+    store = JsonlAuditStore(source)
+
+    asyncio.run(store.append(_receipt()))
+    shutil.copy2(source, backup)
+    record = json.loads(backup.read_text(encoding="utf-8"))
+    record["receipt"]["verification"] = "fail"
+    backup.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+    with pytest.raises(AuditChainError, match="audit_record_hash_invalid"):
+        JsonlAuditStore.verify_path(backup)

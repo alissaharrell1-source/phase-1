@@ -70,14 +70,28 @@ class JsonlAuditStore:
         return len(lines), previous_hash
 
     def _read_verified(self) -> tuple[int, str]:
-        if not self.path.exists():
+        return self._read_verified_path(self.path)
+
+    @classmethod
+    def _read_verified_path(cls, path: Path) -> tuple[int, str]:
+        if not path.exists():
             return 0, ""
         try:
-            with self.path.open("r", encoding="utf-8") as handle:
+            with path.open("r", encoding="utf-8") as handle:
                 lines = [line.rstrip("\n") for line in handle]
         except OSError as exc:
             raise AuditChainError("audit_store_unreadable") from exc
-        return self._verify_lines(lines)
+        return cls._verify_lines(lines)
+
+    @classmethod
+    def verify_path(cls, path: str | Path) -> int:
+        """Verify an audit file without creating or acquiring a lock sidecar.
+
+        This is intended for backup and restore validation. Callers should
+        validate a consistent filesystem snapshot or a quiesced backup rather
+        than a file that is actively being appended.
+        """
+        return cls._read_verified_path(Path(path))[0]
 
     @contextmanager
     def _exclusive_lock(self) -> Iterator[None]:

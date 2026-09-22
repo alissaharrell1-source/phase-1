@@ -34,4 +34,12 @@ Do not route production traffic until all replicas are Ready and the policy regi
 
 ## Backup and rotation
 
-Back up audit records with their lock sidecar and verify the chain after restore. Rotate OIDC, intent-signing, Vault, upstream, and OTLP credentials through the external secret manager. Never copy secrets into audit records, benchmark output, issue reports, or container arguments.
+Back up audit records with their lock sidecar and verify the chain after restore. Use a filesystem-consistent snapshot or quiesce writers before copying the JSONL file. The read-only verifier does not create or modify a lock sidecar in the backup:
+
+```powershell
+python -m vie_gateway.audit_cli C:\backup\madva\receipts.jsonl
+# or, after installing the package:
+madva-audit-verify C:\backup\madva\receipts.jsonl
+```
+
+A successful check returns `{"verified":true,"records":N,...}` and exit code `0`. Any malformed, missing, reordered, or modified record returns `{"verified":false,...}` and exit code `2`; preserve the affected backup and investigate instead of repairing it in place. Rotate OIDC, intent-signing, Vault, upstream, and OTLP credentials through the external secret manager. Never copy secrets into audit records, benchmark output, issue reports, or container arguments.
