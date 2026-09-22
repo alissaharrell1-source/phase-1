@@ -103,16 +103,17 @@ class JsonlAuditStore:
             if os.name == "nt":
                 import msvcrt
 
+                msvcrt_module = cast(Any, msvcrt)
                 handle.seek(0)
                 handle.write("0")
                 handle.flush()
                 handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                msvcrt_module.locking(handle.fileno(), msvcrt_module.LK_LOCK, 1)
                 try:
                     yield
                 finally:
                     handle.seek(0)
-                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                    msvcrt_module.locking(handle.fileno(), msvcrt_module.LK_UNLCK, 1)
             else:
                 import fcntl as fcntl_module
 
