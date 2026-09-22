@@ -93,3 +93,26 @@ def test_audit_backup_restore_rejects_tampering(tmp_path) -> None:
 
     with pytest.raises(AuditChainError, match="audit_record_hash_invalid"):
         JsonlAuditStore.verify_path(backup)
+
+
+def test_audit_backup_verification_rejects_missing_file(tmp_path) -> None:
+    with pytest.raises(AuditChainError, match="audit_backup_missing"):
+        JsonlAuditStore.verify_path(tmp_path / "missing.jsonl")
+
+
+@pytest.mark.asyncio
+async def test_audit_verification_fails_closed_when_shared_lock_is_unavailable(tmp_path, monkeypatch) -> None:
+    from contextlib import contextmanager
+
+    path = tmp_path / "receipts.jsonl"
+    store = JsonlAuditStore(path)
+    await store.append(_receipt())
+
+    @contextmanager
+    def unavailable_lock():
+        raise OSError("shared storage lock unavailable")
+        yield
+
+    monkeypatch.setattr(store, "_exclusive_lock", unavailable_lock)
+    with pytest.raises(AuditChainError, match="audit_store_unreadable"):
+        await store.verify()

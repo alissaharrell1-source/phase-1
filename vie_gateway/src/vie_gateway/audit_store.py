@@ -91,7 +91,10 @@ class JsonlAuditStore:
         validate a consistent filesystem snapshot or a quiesced backup rather
         than a file that is actively being appended.
         """
-        return cls._read_verified_path(Path(path))[0]
+        backup_path = Path(path)
+        if not backup_path.is_file():
+            raise AuditChainError("audit_backup_missing")
+        return cls._read_verified_path(backup_path)[0]
 
     @contextmanager
     def _exclusive_lock(self) -> Iterator[None]:
@@ -152,7 +155,10 @@ class JsonlAuditStore:
             def verify_sync() -> int:
                 if not self.path.exists():
                     return 0
-                with self._exclusive_lock():
-                    return self._read_verified()[0]
+                try:
+                    with self._exclusive_lock():
+                        return self._read_verified()[0]
+                except OSError as exc:
+                    raise AuditChainError("audit_store_unreadable") from exc
 
             return await asyncio.to_thread(verify_sync)
