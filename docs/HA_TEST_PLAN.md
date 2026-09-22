@@ -8,6 +8,8 @@ The Kubernetes manifests provide the availability mechanisms; they are not proof
 - Confirm three Ready replicas, the internal `ClusterIP` Service, `madva-vie-gateway` PDB, and healthy audit/Vault/OTLP dependencies.
 - Generate a representative authenticated MCP workload using a staging tenant and non-sensitive tool fixture. Never use production credentials or customer data.
 
+Before applying the bundle, run `python security/validate_kubernetes_ha.py --path vie_gateway/deploy/kubernetes` against the rendered manifests. The checked-in base intentionally contains an image-digest placeholder and must fail until the release process substitutes an approved immutable digest. Run the validator again on the rendered staging bundle; only a valid result satisfies the manifest preflight.
+
 ## Load test
 
 Run the repository benchmark for a local baseline, then use an authenticated HTTP load tool at the staging Service or ingress. Record image digest, Kubernetes version, node count, CPU/memory limits, request rate, concurrency, duration, p50/p95/p99 latency, error rate, readiness transitions, audit receipt count, and upstream dependency saturation. Repeat at the planned steady-state and peak concurrency.
