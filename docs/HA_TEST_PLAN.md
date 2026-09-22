@@ -12,6 +12,8 @@ The Kubernetes manifests provide the availability mechanisms; they are not proof
 
 Run the repository benchmark for a local baseline, then use an authenticated HTTP load tool at the staging Service or ingress. Record image digest, Kubernetes version, node count, CPU/memory limits, request rate, concurrency, duration, p50/p95/p99 latency, error rate, readiness transitions, audit receipt count, and upstream dependency saturation. Repeat at the planned steady-state and peak concurrency.
 
+For a bounded unauthenticated service smoke before the authenticated workload, run `madva-ha-smoke --url https://staging-gateway.example --path /healthz --iterations 300 --concurrency 20` and repeat with `--path /readyz`. The command emits status counts and latency percentiles without recording response bodies. It is a health/readiness signal, not a substitute for the authenticated MCP workload below.
+
 ## Disruption test
 
 1. Delete one gateway pod and confirm the Service continues serving requests while a replacement becomes Ready.
