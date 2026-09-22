@@ -30,7 +30,7 @@ jobs:
         run: python -c "import yaml; yaml.safe_load(open('compose.yaml', encoding='utf-8'))"
       - name: Upload assessment test evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-evidence-${{ github.sha }}
           path: |
