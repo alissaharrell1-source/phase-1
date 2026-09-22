@@ -11,6 +11,7 @@ Before production rollout, verify:
 - The audit path is durable, backed up, and on locking-capable storage.
 - OTLP export points to an authenticated collector/SIEM without including payloads.
 - Vault uses HTTPS and a rotating token file or equivalent short-lived authentication.
+- `VaultCredentialProvider` rereads `VAULT_TOKEN_FILE` for each new lease. Rotate the file atomically through the secret manager, then verify a new lease uses the replacement token while prior leases are released and sanitized.
 
 ## Kubernetes rollout
 

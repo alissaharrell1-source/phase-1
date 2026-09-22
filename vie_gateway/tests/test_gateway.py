@@ -250,6 +250,40 @@ async def test_vault_provider_supports_short_lived_token_file_and_namespace(tmp_
 
 
 @pytest.mark.asyncio
+async def test_vault_provider_reloads_rotated_token_file_for_new_leases(tmp_path) -> None:
+    import httpx
+
+    token_file = tmp_path / "vault-token"
+    token_file.write_text("short-lived-token-1\n", encoding="utf-8")
+    seen_tokens: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        token = request.headers["X-Vault-Token"]
+        seen_tokens.append(token)
+        value = "secret-one" if token.endswith("-1") else "secret-two"
+        return httpx.Response(200, json={"data": {"data": {"api_key": value}}})
+
+    provider = VaultCredentialProvider("https://vault", token_file=str(token_file),
+                                       transport=httpx.MockTransport(handler), lease_root=str(tmp_path))
+    first = await provider.acquire("vault://secret/tool#api_key", uuid4(),
+                                   datetime.now(UTC) + timedelta(minutes=1))
+    token_file.write_text("short-lived-token-2\n", encoding="utf-8")
+    second = await provider.acquire("vault://secret/tool#api_key", uuid4(),
+                                    datetime.now(UTC) + timedelta(minutes=1))
+
+    first_path = Path(first.host_path)
+    second_path = Path(second.host_path)
+    assert seen_tokens == ["short-lived-token-1", "short-lived-token-2"]
+    assert first_path.read_text(encoding="utf-8") == "secret-one"
+    assert second_path.read_text(encoding="utf-8") == "secret-two"
+
+    await provider.release(first)
+    await provider.release(second)
+    assert not first_path.exists()
+    assert not second_path.exists()
+
+
+@pytest.mark.asyncio
 async def test_vault_provider_requires_tls_when_enabled(tmp_path) -> None:
     provider = VaultCredentialProvider("http://vault", "test-vault-token", require_tls=True,
                                        lease_root=str(tmp_path))
