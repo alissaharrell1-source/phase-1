@@ -8,7 +8,7 @@
 | C-04 Approved policy revision | `PolicyRegistry` with approval metadata invariants | `tests/test_policy.py`, `docs/POLICY_APPROVALS.md` | Review the external approval service and registry distribution on the target platform |
 | C-05 Execution isolation | Hardened `DockerRunner`, Kubernetes security context, and host-namespace guards | Docker tests, timeout-cleanup path, and manifest regression checks | Independent host/runtime escape assessment |
 | C-06 Credential isolation | `VaultCredentialProvider`, opaque leases, and Vault readiness gate | Vault tests, token-file rotation regression, Docker credential integration, and `docs/VAULT_DEPLOYMENT.md` | Execute the Vault Agent rotation test in the target deployment |
-| C-07 Result verification/DLP | `Verifier`, output schema, `DLPScanner` | gateway and verification tests | DSPM coverage assessment |
+| C-07 Result verification/DLP | `Verifier`, output schema, expanded `DLPScanner` | gateway, DLP, and failure-path tests | Integrate and assess an external DSPM/memory scanner in the target deployment |
 | C-08 Audit integrity | `JsonlAuditStore`, cross-process lock, and read-only backup verifier | audit tests, restore/tamper tests, and `madva-audit-verify` | Shared-storage disruption and backup restore in the target platform |
 | C-09 Telemetry redaction | bounded OTel attributes | span tests and OTLP config checks | Collector retention/access review |
 | C-10 HA operations | Kubernetes Deployment, Service, PDB, probes | Kustomize render and operations guide | Cluster disruption/load test |
