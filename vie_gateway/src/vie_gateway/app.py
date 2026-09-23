@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 from .security import IntentSigner, JITAuthorizer, OIDCTokenValidator, TokenValidator, oidc_cache_ttl_from_environment
 from .verification import Verifier
-from .telemetry import AuditTracer, configure_tracing, validate_otlp_endpoint
+from .telemetry import AuditTracer, check_otlp_endpoint_reachable, configure_tracing, validate_otlp_endpoint
 from .graph import GraphDependencies, build_vie_graph
 from .credentials import DenyAllCredentialProvider, VaultCredentialProvider
 from .mcp_upstream import MCPUpstreamConfig, MCPUpstreamRunner
@@ -130,6 +130,11 @@ def create_app() -> FastAPI:
                     )
                 except ValueError as exc:
                     issues.append(str(exc))
+                else:
+                    try:
+                        await check_otlp_endpoint_reachable(otlp_endpoint)
+                    except ValueError as exc:
+                        issues.append(str(exc))
         if issues:
             return JSONResponse(status_code=503, content={"status": "not_ready", "issues": issues})
         return {"status": "ready"}

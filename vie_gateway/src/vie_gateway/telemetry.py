@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import contextmanager
 import os
+import ssl
 from typing import Iterator
 from urllib.parse import urlparse
 
@@ -39,6 +41,38 @@ def validate_otlp_endpoint(endpoint: str, *, require_tls: bool = False) -> None:
         raise ValueError("otlp_endpoint_must_not_contain_credentials_or_query")
     if require_tls and parsed.scheme != "https":
         raise ValueError("otlp_tls_required")
+
+
+async def check_otlp_endpoint_reachable(endpoint: str, *, timeout_seconds: float = 2.0) -> None:
+    """Verify the configured OTLP host accepts a bounded connection.
+
+    Readiness uses this check only when telemetry is explicitly required. It
+    validates TLS certificates for HTTPS endpoints but does not send a span or
+    record endpoint details in the readiness response.
+    """
+    validate_otlp_endpoint(endpoint)
+    parsed = urlparse(endpoint)
+    hostname = parsed.hostname
+    if hostname is None:
+        raise ValueError("otlp_endpoint_invalid")
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    tls = parsed.scheme == "https"
+    ssl_context = ssl.create_default_context() if tls else None
+    try:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(
+                hostname,
+                port,
+                ssl=ssl_context,
+                server_hostname=hostname if tls else None,
+            ),
+            timeout=timeout_seconds,
+        )
+    except (asyncio.TimeoutError, OSError, ssl.SSLError, ValueError) as exc:
+        raise ValueError("otlp_endpoint_unreachable") from exc
+    writer.close()
+    await writer.wait_closed()
+    del reader
 
 
 def configure_tracing(service_name: str = "madva-vie-gateway") -> None:
