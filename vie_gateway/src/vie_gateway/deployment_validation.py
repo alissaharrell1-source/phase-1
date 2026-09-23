@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import re
 import tempfile
 from dataclasses import dataclass
@@ -14,6 +13,7 @@ import httpx
 
 from .credentials import VaultCredentialProvider
 from .security import oidc_cache_ttl_from_environment
+from .telemetry import check_otlp_endpoint_reachable
 
 
 _DIGEST_IMAGE = re.compile(r"@sha256:[0-9a-f]{64}$")
@@ -204,15 +204,10 @@ async def validate_live_environment(environment: Mapping[str, str]) -> Deploymen
 
     if _is_true(environment, "MADVA_REQUIRE_OTEL"):
         endpoint_name = "OTEL_EXPORTER_OTLP_ENDPOINT" if _value(environment, "OTEL_EXPORTER_OTLP_ENDPOINT") else "MADVA_SIEM_OTLP_ENDPOINT"
-        parsed = urlsplit(_value(environment, endpoint_name))
         try:
-            port = parsed.port or (443 if parsed.scheme == "https" else 80)
-            reader, writer = await asyncio.wait_for(asyncio.open_connection(parsed.hostname, port), timeout=5.0)
-            writer.close()
-            await writer.wait_closed()
-            del reader
+            await check_otlp_endpoint_reachable(_value(environment, endpoint_name), timeout_seconds=5.0)
             checks.append("otel_endpoint_reachable")
-        except (asyncio.TimeoutError, OSError, ValueError):
+        except ValueError:
             errors.append("otel_endpoint_unreachable")
 
     return DeploymentValidation(tuple(errors), tuple(checks))
