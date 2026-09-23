@@ -4,6 +4,8 @@ Use this runbook after the target staging identity provider, Vault Agent, OTLP c
 
 ## 1. Load deployment configuration
 
+Start by completing the [staging configuration record](STAGING_CONFIGURATION_RECORD.md) for the approved non-production environment. It identifies the Kubernetes context, immutable image, configuration sources, owners, and remediation references without recording secret values.
+
 Set the production contract variables in the process environment or inject them through the approved secret manager. Do not commit a populated `.env` file and do not place secret values in the evidence record.
 
 Required configuration includes:
