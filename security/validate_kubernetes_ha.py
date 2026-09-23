@@ -57,9 +57,10 @@ def validate_manifests(directory: Path) -> list[str]:
         isinstance(item, dict)
         and item.get("topologyKey") == "kubernetes.io/hostname"
         and item.get("whenUnsatisfiable") == "DoNotSchedule"
+        and item.get("nodeTaintsPolicy") == "Honor"
         for item in spread
     ):
-        errors.append("hostname_topology_spread_required")
+        errors.append("taint_aware_hostname_topology_spread_required")
     image = container.get("image", "") if isinstance(container, dict) else ""
     if not isinstance(image, str) or "@sha256:" not in image or "REPLACE_WITH" in image:
         errors.append("immutable_image_digest_required")

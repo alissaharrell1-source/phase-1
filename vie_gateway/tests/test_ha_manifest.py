@@ -18,6 +18,7 @@ def test_ha_deployment_preserves_replicas_during_rollout() -> None:
     assert "path: /readyz" in deployment
     assert "failureThreshold: 30" in deployment
     assert "topologyKey: kubernetes.io/hostname" in deployment
+    assert "nodeTaintsPolicy: Honor" in deployment
 
 
 def test_ha_service_and_disruption_budget_select_gateway() -> None:
