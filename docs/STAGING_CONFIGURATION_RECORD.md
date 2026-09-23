@@ -25,6 +25,7 @@ Record the approved configuration source or variable name, not its secret value 
 | Capability | Required reference | Required contract |
 |---|---|---|
 | OIDC issuer | `MADVA_OIDC_ISSUER` | TLS-enabled issuer; discovery and JWKS reachable from the gateway |
+| OIDC discovery (optional) | `MADVA_OIDC_DISCOVERY_URL` | TLS-enabled provider discovery URL when it differs from the advertised issuer; issuer must still match discovery metadata |
 | OIDC audience | `MADVA_OIDC_AUDIENCE` | Matches the staging gateway registration |
 | OIDC JWKS | `MADVA_OIDC_JWKS_URL` | TLS-enabled JWKS endpoint; key rotation procedure documented |
 | Vault | `VAULT_ADDR` | TLS-enabled address; Vault Agent/CSI injects credentials without Git-stored tokens |

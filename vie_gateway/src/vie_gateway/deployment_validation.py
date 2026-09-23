@@ -72,6 +72,8 @@ def validate_environment(environment: Mapping[str, str]) -> DeploymentValidation
 
     _check_url(environment, "MADVA_OIDC_JWKS_URL", require_tls=require_tls, errors=errors, checks=checks)
     _check_url(environment, "MADVA_OIDC_ISSUER", require_tls=require_tls, errors=errors, checks=checks)
+    if _value(environment, "MADVA_OIDC_DISCOVERY_URL"):
+        _check_url(environment, "MADVA_OIDC_DISCOVERY_URL", require_tls=require_tls, errors=errors, checks=checks)
     if not _value(environment, "MADVA_OIDC_AUDIENCE"):
         errors.append("missing_madva_oidc_audience")
     else:
@@ -145,10 +147,11 @@ async def validate_live_environment(environment: Mapping[str, str]) -> Deploymen
     production = _is_true(environment, "MADVA_PRODUCTION")
 
     issuer = _value(environment, "MADVA_OIDC_ISSUER").rstrip("/")
+    discovery_url = _value(environment, "MADVA_OIDC_DISCOVERY_URL") or f"{issuer}/.well-known/openid-configuration"
     jwks_url = _value(environment, "MADVA_OIDC_JWKS_URL")
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            discovery = await client.get(f"{issuer}/.well-known/openid-configuration")
+            discovery = await client.get(discovery_url)
             discovery.raise_for_status()
             metadata = discovery.json()
             if not isinstance(metadata, dict) or str(metadata.get("issuer", "")).rstrip("/") != issuer:

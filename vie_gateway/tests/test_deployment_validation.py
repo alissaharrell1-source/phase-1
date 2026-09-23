@@ -29,6 +29,24 @@ def test_valid_production_environment() -> None:
     assert result.as_dict()["errors"] == []
 
 
+def test_accepts_provider_specific_oidc_discovery_url() -> None:
+    environment = _valid()
+    environment["MADVA_OIDC_ISSUER"] = "https://identity.oraclecloud.com/"
+    environment["MADVA_OIDC_DISCOVERY_URL"] = (
+        "https://idcs.example.identity.oraclecloud.com/.well-known/openid-configuration"
+    )
+    result = validate_environment(environment)
+    assert result.valid
+    assert "madva_oidc_discovery_url" in result.checks
+
+
+def test_rejects_insecure_oidc_discovery_url_in_production() -> None:
+    environment = _valid()
+    environment["MADVA_OIDC_DISCOVERY_URL"] = "http://idcs.example/.well-known/openid-configuration"
+    result = validate_environment(environment)
+    assert "madva_oidc_discovery_url_tls_required" in result.errors
+
+
 def test_rejects_non_digest_runtime_image() -> None:
     environment = _valid()
     environment["MADVA_RUNTIME_IMAGE"] = "registry.example/tool:latest"
